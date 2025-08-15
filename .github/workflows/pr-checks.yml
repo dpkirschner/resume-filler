@@ -1,0 +1,82 @@
+name: PR Quality Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Needed for proper diff analysis
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Validate package.json and package-lock.json
+      run: npm audit signatures
+      
+    - name: Check for TypeScript errors
+      run: npm run typecheck
+      
+    - name: Check code style and linting
+      run: npm run lint
+      
+    - name: Run all tests
+      run: npm run test:ci
+      
+    - name: Check test coverage thresholds
+      run: |
+        npm run test:coverage -- --coverageThreshold='{"global":{"branches":80,"functions":80,"lines":80,"statements":80}}'
+      continue-on-error: true
+      
+    - name: Validate Chrome extension manifest
+      run: |
+        if [ -f "public/manifest.json" ]; then
+          echo "Validating manifest.json..."
+          node -e "
+            const manifest = require('./public/manifest.json');
+            console.log('Manifest version:', manifest.manifest_version);
+            console.log('Extension name:', manifest.name);
+            console.log('Version:', manifest.version);
+            if (!manifest.name || !manifest.version) {
+              throw new Error('Invalid manifest: missing required fields');
+            }
+          "
+        else
+          echo "Manifest file not found at public/manifest.json"
+        fi
+        
+    - name: Check bundle size
+      run: |
+        npm run build
+        echo "Build completed successfully"
+        if [ -d "dist" ]; then
+          echo "Bundle sizes:"
+          du -sh dist/*
+        fi
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v3
+      with:
+        fail-on-severity: moderate

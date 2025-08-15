@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run quality checks
+      run: |
+        npm run typecheck
+        npm run lint
+        npm run test:ci
+        
+    - name: Build extension for release
+      run: npm run build
+      
+    - name: Create extension package
+      run: |
+        cd dist
+        zip -r ../job-application-co-pilot-${{ github.ref_name }}.zip .
+        cd ..
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        name: Release ${{ github.ref_name }}
+        body: |
+          ## Changes in this Release
+          
+          ### 🚀 Features
+          - Chrome extension for intelligent job application autofill
+          - Privacy-first encrypted profile storage
+          - React-based configuration UI
+          
+          ### 🔒 Security
+          - Local-first data storage with encryption
+          - No PII sent to external services without explicit consent
+          
+          ### 📦 Installation
+          1. Download the `job-application-co-pilot-${{ github.ref_name }}.zip` file
+          2. Extract the contents
+          3. Load the extension in Chrome developer mode
+          
+          For full installation instructions, see the [README](README.md).
+        files: |
+          job-application-co-pilot-${{ github.ref_name }}.zip
+        draft: false
+        prerelease: false
