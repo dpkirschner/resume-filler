@@ -83,58 +83,48 @@ export class SelectorGenerator {
    */
   private generateManualSelectors(element: HTMLElement): SelectorCandidate[] {
     const candidates: SelectorCandidate[] = [];
-
-    // Strategy 1A: Unique ID selector
-    if (element.id && this.isStableId(element.id)) {
-      candidates.push({
-        selector: `#${element.id}`,
-        confidence: 0.95,
-        source: 'manual-id'
-      });
-    }
-
-    // Strategy 1B: Name attribute selector
-    const name = element.getAttribute('name');
-    if (name) {
-      candidates.push({
-        selector: `[name="${name}"]`,
-        confidence: 0.9,
-        source: 'manual-name'
-      });
-
-      // Enhanced name selector with context
-      const form = element.closest('form');
-      if (form) {
+  
+    // Define strategies in order of descending priority.
+    const strategies = [
+      { attr: 'data-testid', confidence: 0.99 },
+      { attr: 'data-cy', confidence: 0.98 },
+      { attr: 'data-test', confidence: 0.97 },
+      { attr: 'data-automation-id', confidence: 0.95 },
+      { attr: 'id', confidence: 0.90, validator: this.isStableId },
+      { attr: 'name', confidence: 0.85 },
+      { attr: 'autocomplete', confidence: 0.80 },
+    ];
+  
+    for (const strategy of strategies) {
+      const value = element.getAttribute(strategy.attr);
+  
+      if (value && (!strategy.validator || strategy.validator(value))) {
+        let selector = '';
+  
+        // The ID attribute is a special case that uses the '#' syntax.
+        if (strategy.attr === 'id') {
+          const escapedId = value.replace(/([:./\\])/g, '\\$1');
+          selector = `#${escapedId}`;
+        } else {
+          selector = `[${strategy.attr}="${value}"]`;
+        }
+  
+        // Add a candidate with the tag name for higher specificity and confidence.
         candidates.push({
-          selector: `form [name="${name}"]`,
-          confidence: 0.92,
-          source: 'manual-name'
+          selector: `${element.tagName.toLowerCase()}${selector}`,
+          confidence: strategy.confidence + 0.01,
+          source: `manual-${strategy.attr}-tag`,
+        });
+  
+        // Add the simpler candidate as a fallback.
+        candidates.push({
+          selector,
+          confidence: strategy.confidence,
+          source: `manual-${strategy.attr}`,
         });
       }
     }
-
-    // Strategy 1C: Data attribute selectors
-    for (const attr of ['data-testid', 'data-test', 'data-cy']) {
-      const value = element.getAttribute(attr);
-      if (value) {
-        candidates.push({
-          selector: `[${attr}="${value}"]`,
-          confidence: 0.88,
-          source: 'manual-data-attr'
-        });
-      }
-    }
-
-    // Strategy 1D: Autocomplete attribute (form-specific)
-    const autocomplete = element.getAttribute('autocomplete');
-    if (autocomplete && autocomplete !== 'off') {
-      candidates.push({
-        selector: `[autocomplete="${autocomplete}"]`,
-        confidence: 0.85,
-        source: 'manual-data-attr'
-      });
-    }
-
+  
     return candidates;
   }
 
@@ -248,6 +238,10 @@ export class SelectorGenerator {
     candidates: SelectorCandidate[],
     targetElement: HTMLElement
   ): Promise<SelectorCandidate[]> {
+    if (!targetElement.isConnected) {
+      return candidates.filter(c => c.confidence > 0.1);
+    }
+  
     const validated: SelectorCandidate[] = [];
 
     for (const candidate of candidates) {
@@ -256,10 +250,19 @@ export class SelectorGenerator {
         
         // Check if selector uniquely identifies the target element
         if (elements.length === 1 && elements[0] === targetElement) {
-          // Perfect match - boost confidence
+          // Perfect match - apply a nuanced confidence boost.
+          let confidenceBoost = 0;
+          if (candidate.source.startsWith('manual')) {
+            confidenceBoost = 0.1; // Give a significant boost to reliable manual selectors.
+          } else {
+            confidenceBoost = 0.05; // Give a smaller boost to library/structural selectors.
+          }
+          
+          const newConfidence = Math.min(1, candidate.confidence + confidenceBoost);
           validated.push({
             ...candidate,
-            confidence: Math.min(1, candidate.confidence + 0.1)
+            // Round the result to a fixed precision to avoid floating-point errors.
+            confidence: parseFloat(newConfidence.toFixed(4))
           });
         } else if (elements.length > 1 && Array.from(elements).includes(targetElement)) {
           // Non-unique but includes target - apply a harsh penalty and a cap

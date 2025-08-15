@@ -52,9 +52,8 @@ export class GeometricValidator {
     
     // Calculate confidence based on proximity and alignment
     const confidence = this.calculateProximityConfidence(
-      verticalDistance,
-      horizontalAlignment,
-      isInSameRow,
+      inputRect,
+      textRect,
       config
     );
 
@@ -153,26 +152,33 @@ export class GeometricValidator {
    * @returns Confidence score (0-1)
    */
   private calculateProximityConfidence(
-    verticalDistance: number,
-    horizontalAlignment: number,
-    isInSameRow: boolean,
+    inputRect: DOMRect,
+    textRect: DOMRect,
     config: GeometricValidationConfig
   ): number {
-    // Score is based on how close to ideal (0 distance/alignment) we are
-    // The score for each dimension is between 0 and 1
-    const verticalScore = Math.max(0, 1 - (verticalDistance / config.maxVerticalDistance));
-    const horizontalScore = Math.max(0, 1 - (horizontalAlignment / config.maxHorizontalDistance));
-
-    // Weight the scores. Vertical alignment is often more important than horizontal
-    // A common layout is a label directly above a left-aligned input
-    let confidence = (verticalScore * 0.6) + (horizontalScore * 0.4);
-
-    // Apply a bonus for being in the same row, as this is a strong signal
-    if (isInSameRow) {
-      confidence += 0.2;
+    // A label is typically either DIRECTLY ABOVE or DIRECTLY TO THE LEFT.
+    // We identify the layout and score it based on the gap.
+    
+    const verticalGap = inputRect.top - textRect.bottom;
+    const horizontalGap = inputRect.left - textRect.right;
+    
+    const isLeftAligned = Math.abs(inputRect.left - textRect.left) < 50;
+    const isInSameRow = Math.abs((inputRect.top + inputRect.height / 2) - (textRect.top + textRect.height / 2)) <= config.sameRowTolerance;
+  
+    // Case 1: Label is directly above the input.
+    if (isLeftAligned && verticalGap >= 0) {
+      // The score is 1 (perfect) if touching, and decreases to 0 at maxVerticalDistance.
+      return Math.max(0, 1 - (verticalGap / config.maxVerticalDistance));
     }
-
-    return Math.min(1, confidence); // Clamp the final score between 0 and 1
+  
+    // Case 2: Label is directly to the left of the input.
+    if (isInSameRow && horizontalGap >= 0) {
+      // The score is 1 (perfect) if touching, and decreases to 0 at maxHorizontalDistance.
+      return Math.max(0, 1 - (horizontalGap / config.maxHorizontalDistance));
+    }
+  
+    // If the layout doesn't match either of these common patterns, it's not a valid label.
+    return 0;
   }
 
   /**

@@ -26,6 +26,10 @@ export class LabelAssociator {
    * @returns Label result with confidence score
    */
   async associateLabel(element: HTMLFormElement): Promise<LabelResult> {
+    if (!element) {
+      return { label: '', confidence: 0, source: 'invalid-input' };
+    }
+    
     const strategies = [
       () => this.findByForAttribute(element),
       () => this.findByWrappingLabel(element),
@@ -131,17 +135,20 @@ export class LabelAssociator {
     if (!ariaLabelledBy) {
       return { label: '', confidence: 0, source: 'aria-labelledby' };
     }
-
-    const labelElement = document.getElementById(ariaLabelledBy);
-    if (labelElement && labelElement.textContent) {
+  
+    const labelTexts = ariaLabelledBy
+      .split(' ')
+      .map(id => document.getElementById(id)?.textContent?.trim())
+      .filter(Boolean);
+  
+    if (labelTexts.length > 0) {
       return {
-        label: labelElement.textContent.trim(),
+        label: labelTexts.join(' '),
         confidence: 0.85,
         source: 'aria-labelledby',
-        debug: `Found element with id="${ariaLabelledBy}"`
       };
     }
-
+  
     return { label: '', confidence: 0, source: 'aria-labelledby' };
   }
 
@@ -375,8 +382,8 @@ export class LabelAssociator {
     
     // Ultimate fallback
     return {
-      label: 'Unlabeled Field',
-      confidence: 0.1,
+      label: '', // Return an empty label for consistency
+      confidence: 0, // Confidence should be zero if nothing was found
       source: 'fallback',
       debug: 'No suitable label found'
     };

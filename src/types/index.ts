@@ -87,10 +87,21 @@ export interface LabelResult {
   debug?: string;
 }
 
+type ManualStrategyAttribute = 
+  | 'testid' 
+  | 'cy' 
+  | 'test' 
+  | 'automation-id' 
+  | 'id' 
+  | 'name' 
+  | 'autocomplete';
+
+type ManualSource = `manual-${ManualStrategyAttribute}` | `manual-${ManualStrategyAttribute}-tag`;
+
 export interface SelectorCandidate {
   selector: string;
   confidence: number; // 0-1
-  source: 'manual-id' | 'manual-name' | 'manual-data-attr' | 'library' | 'structural';
+  source: ManualSource | 'library' | 'structural';
 }
 
 export interface SelectorResult {

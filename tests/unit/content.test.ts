@@ -18,7 +18,7 @@ describe('Content Script', () => {
     // Import the content script to ensure it loads without errors
     require('../../src/content/index');
     
-    expect(consoleSpy).toHaveBeenCalledWith('Job Application Co-Pilot content script loaded');
+    expect(consoleSpy).toHaveBeenCalledWith('Job Application Co-Pilot: Content script loaded and ready');
   });
 
   it('should not throw errors during initialization', () => {
