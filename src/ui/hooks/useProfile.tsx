@@ -86,44 +86,45 @@ export function useProfile(): UseProfileReturn {
       throw new Error('Field label is required');
     }
 
+    // Get current profile for validation
+    const currentProfile = profile || [];
+    const existingLabels = currentProfile.map(f => f.label.toLowerCase());
+    if (existingLabels.includes(newField.label.toLowerCase())) {
+      throw new Error('A field with this label already exists');
+    }
+
     setProfile(currentProfile => {
       const newProfile = currentProfile ? [...currentProfile] : [];
-      
-      // Check for duplicate labels
-      const existingLabels = newProfile.map(f => f.label.toLowerCase());
-      if (existingLabels.includes(newField.label.toLowerCase())) {
-        throw new Error('A field with this label already exists');
-      }
-
       newProfile.push(newField);
       return newProfile;
     });
-  }, []);
+  }, [profile]);
 
   const updateField = useCallback(async (index: number, fieldUpdates: Partial<ProfileField>): Promise<void> => {
-    setProfile(currentProfile => {
-      if (!currentProfile || index < 0 || index >= currentProfile.length) {
-        throw new Error('Invalid field index');
+    if (!profile || index < 0 || index >= profile.length) {
+      throw new Error('Invalid field index');
+    }
+
+    // If updating label, check for duplicates
+    if (fieldUpdates.label) {
+      const trimmedLabel = fieldUpdates.label.trim();
+      if (!trimmedLabel) {
+        throw new Error('Field label cannot be empty');
       }
 
-      const newProfile = [...currentProfile];
+      const existingLabels = profile
+        .map((f, i) => i !== index ? f.label.toLowerCase() : null)
+        .filter(Boolean);
       
-      // If updating label, check for duplicates
-      if (fieldUpdates.label) {
-        const trimmedLabel = fieldUpdates.label.trim();
-        if (!trimmedLabel) {
-          throw new Error('Field label cannot be empty');
-        }
-
-        const existingLabels = newProfile
-          .map((f, i) => i !== index ? f.label.toLowerCase() : null)
-          .filter(Boolean);
-        
-        if (existingLabels.includes(trimmedLabel.toLowerCase())) {
-          throw new Error('A field with this label already exists');
-        }
+      if (existingLabels.includes(trimmedLabel.toLowerCase())) {
+        throw new Error('A field with this label already exists');
       }
+    }
 
+    setProfile(currentProfile => {
+      if (!currentProfile) return currentProfile;
+      
+      const newProfile = [...currentProfile];
       newProfile[index] = {
         ...newProfile[index],
         ...fieldUpdates,
@@ -132,19 +133,21 @@ export function useProfile(): UseProfileReturn {
 
       return newProfile;
     });
-  }, []);
+  }, [profile]);
 
   const removeField = useCallback(async (index: number): Promise<void> => {
-    setProfile(currentProfile => {
-      if (!currentProfile || index < 0 || index >= currentProfile.length) {
-        throw new Error('Invalid field index');
-      }
+    if (!profile || index < 0 || index >= profile.length) {
+      throw new Error('Invalid field index');
+    }
 
+    setProfile(currentProfile => {
+      if (!currentProfile) return currentProfile;
+      
       const newProfile = [...currentProfile];
       newProfile.splice(index, 1);
       return newProfile;
     });
-  }, []);
+  }, [profile]);
 
   const clearProfile = useCallback(() => {
     setProfile(null);

@@ -19,6 +19,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
 
     /* Chrome Extension */
     "types": ["chrome", "vite/client"]
