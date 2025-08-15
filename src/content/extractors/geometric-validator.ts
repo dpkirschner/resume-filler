@@ -223,9 +223,10 @@ export class GeometricValidator {
 
     // Check for same row (left/right relationship)
     if (this.isInSameRow(inputRect, textRect, 10)) {
-      if (textRect.right < inputRect.left) {
+      // Use inclusive operators to correctly handle touching elements.
+      if (textRect.right <= inputRect.left) {
         return 'left';
-      } else if (textRect.left > inputRect.right) {
+      } else if (textRect.left >= inputRect.right) {
         return 'right';
       }
     }

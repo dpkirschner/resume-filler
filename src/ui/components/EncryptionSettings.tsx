@@ -24,7 +24,6 @@ export function EncryptionSettings({
 }: EncryptionSettingsProps) {
   const [showPassword, setShowPassword] = useState(false);
   const { validatePassphrase } = useEncryption();
-  // Using React Hook Form validation instead of custom hook
   
   const {
     register,
@@ -38,10 +37,8 @@ export function EncryptionSettings({
 
   const onSubmit = async (data: PassphraseFormData) => {
     if (hasExistingProfile) {
-      // Verify existing passphrase
       onPassphraseVerified(data.passphrase);
     } else {
-      // Set new passphrase
       if (validatePassphrase(data.passphrase)) {
         onPassphraseSet(data.passphrase);
       }
@@ -69,11 +66,12 @@ export function EncryptionSettings({
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="passphrase-input" className="block text-sm font-medium text-gray-700 mb-1">
               Passphrase
             </label>
             <div className="relative flex items-center">
               <input
+                id="passphrase-input"
                 type={showPassword ? 'text' : 'password'}
                 {...register('passphrase', { 
                   required: 'Passphrase is required',
@@ -112,6 +110,7 @@ export function EncryptionSettings({
                 type="button"
                 className="absolute right-2 p-2 flex items-center justify-center hover:bg-gray-100 rounded transition-colors"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   {showPassword ? (
@@ -132,6 +131,7 @@ export function EncryptionSettings({
           {!hasExistingProfile && (
             <>
               <Input
+                id="confirm-passphrase-input"
                 label="Confirm Passphrase"
                 type={showPassword ? 'text' : 'password'}
                 {...register('confirmPassphrase', {

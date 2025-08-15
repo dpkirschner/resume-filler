@@ -58,7 +58,7 @@ export function ProfileField({ field, index, onEdit, onDelete }: ProfileFieldPro
           
           <div className="text-sm text-gray-600">
             {displayValue}
-            {formattedValue.length > 50 && (
+            {(formattedValue.length > 50 || Array.isArray(field.value)) && (
               <button
                 type="button"
                 className="ml-1 text-blue-600 hover:text-blue-800"

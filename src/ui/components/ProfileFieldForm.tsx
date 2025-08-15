@@ -3,6 +3,7 @@ import { ProfileField, WorkExperience } from '../../types';
 import { Button } from './common/Button';
 import { Input } from './common/Input';
 import { Modal } from './common/Modal';
+import { useEffect } from 'react';
 
 export interface ProfileFieldFormProps {
   isOpen: boolean;
@@ -19,6 +20,16 @@ interface FormData {
   isSensitive: boolean;
 }
 
+// Helper function to ensure the type is always a valid option
+const getValidType = (type?: ProfileField['type']): ProfileField['type'] => {
+  const validTypes: ProfileField['type'][] = ['personal', 'work', 'custom', 'workExperience', 'eeo'];
+  if (type && validTypes.includes(type)) {
+    return type;
+  }
+  return 'custom'; // Default fallback
+};
+
+// ✨ FIX: The full props list was missing from the function signature. It has been restored here.
 export function ProfileFieldForm({ 
   isOpen, 
   onClose, 
@@ -36,10 +47,22 @@ export function ProfileFieldForm({
     defaultValues: {
       label: initialField?.label || '',
       value: typeof initialField?.value === 'string' ? initialField.value : '',
-      type: initialField?.type || 'custom',
+      type: getValidType(initialField?.type),
       isSensitive: initialField?.isSensitive || false
     }
   });
+
+  // This useEffect will correctly update the form when props change for "edit" mode.
+  useEffect(() => {
+    if (initialField) {
+      reset({
+        label: initialField.label,
+        value: typeof initialField.value === 'string' ? initialField.value : '',
+        type: getValidType(initialField.type),
+        isSensitive: initialField.isSensitive || false
+      });
+    }
+  }, [initialField, reset]);
 
   const fieldType = watch('type');
 
@@ -47,12 +70,10 @@ export function ProfileFieldForm({
     try {
       let processedValue: string | WorkExperience[] = data.value;
 
-      // Handle work experience as JSON if it's that type
       if (data.type === 'workExperience' && data.value) {
         try {
           processedValue = JSON.parse(data.value) as WorkExperience[];
         } catch {
-          // If JSON parsing fails, keep as string
           processedValue = data.value;
         }
       }
@@ -96,6 +117,7 @@ export function ProfileFieldForm({
     >
       <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
         <Input
+          id="profile-field-label"
           label="Field Label"
           {...register('label', { 
             required: 'Label is required',
@@ -106,10 +128,11 @@ export function ProfileFieldForm({
         />
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="profile-field-type" className="block text-sm font-medium text-gray-700 mb-1">
             Field Type
           </label>
           <select
+            id="profile-field-type"
             {...register('type', { required: 'Type is required' })}
             className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
           >
@@ -125,11 +148,12 @@ export function ProfileFieldForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="profile-field-value" className="block text-sm font-medium text-gray-700 mb-1">
             Value
           </label>
           {fieldType === 'workExperience' ? (
             <textarea
+              id="profile-field-value"
               {...register('value', { required: 'Value is required' })}
               rows={6}
               className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -137,6 +161,7 @@ export function ProfileFieldForm({
             />
           ) : (
             <Input
+              id="profile-field-value"
               {...register('value', { required: 'Value is required' })}
               error={errors.value?.message}
               placeholder="Enter the field value"
@@ -146,11 +171,12 @@ export function ProfileFieldForm({
 
         <div className="flex items-center">
           <input
+            id="profile-field-sensitive"
             type="checkbox"
             {...register('isSensitive')}
             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
           />
-          <label className="ml-2 block text-sm text-gray-700">
+          <label htmlFor="profile-field-sensitive" className="ml-2 block text-sm text-gray-700">
             Mark as sensitive data
           </label>
         </div>

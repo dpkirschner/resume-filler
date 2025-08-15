@@ -1,0 +1,155 @@
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import '@testing-library/jest-dom';
+
+import { EncryptionSettings, EncryptionSettingsProps } from '../../../src/ui/components/EncryptionSettings';
+import { useEncryption } from '../../../src/ui/hooks/useEncryption';
+
+jest.mock('../../../src/ui/hooks/useEncryption');
+const mockUseEncryption = useEncryption as jest.Mock;
+
+describe('EncryptionSettings', () => {
+  let mockOnPassphraseSet: jest.Mock;
+  let mockOnPassphraseVerified: jest.Mock;
+  let mockValidatePassphrase: jest.Mock;
+
+  beforeEach(() => {
+    mockOnPassphraseSet = jest.fn();
+    mockOnPassphraseVerified = jest.fn();
+    mockValidatePassphrase = jest.fn().mockReturnValue(true);
+
+    mockUseEncryption.mockReturnValue({
+      validatePassphrase: mockValidatePassphrase,
+    });
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const renderComponent = (props: Partial<EncryptionSettingsProps> = {}) => {
+    const defaultProps: EncryptionSettingsProps = {
+      onPassphraseSet: mockOnPassphraseSet,
+      onPassphraseVerified: mockOnPassphraseVerified,
+      hasExistingProfile: false,
+      isLoading: false,
+    };
+    return render(<EncryptionSettings {...defaultProps} {...props} />);
+  };
+
+  describe('in "Set Up" mode (hasExistingProfile: false)', () => {
+    it('should render the setup form correctly', () => {
+      renderComponent({ hasExistingProfile: false });
+
+      expect(screen.getByRole('heading', { name: /set up encryption/i })).toBeInTheDocument();
+      
+      expect(screen.getByLabelText(/^passphrase$/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/confirm passphrase/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /set up encryption/i })).toBeDisabled();
+    });
+
+    it.each([
+      { value: 'short', expectedError: /passphrase must be at least 8 characters/i },
+      { value: 'weakpass', expectedError: /passphrase must contain at least 3 of the following/i },
+    ])('should show validation errors for weak passphrases', async ({ value, expectedError }) => {
+      renderComponent({ hasExistingProfile: false });
+      
+      const passphraseInput = screen.getByLabelText(/^passphrase$/i);
+      
+      await userEvent.type(passphraseInput, value);
+      
+      expect(await screen.findByRole('alert')).toHaveTextContent(expectedError);
+    });
+    
+    it('should show an error if passphrases do not match', async () => {
+        renderComponent({ hasExistingProfile: false });
+
+        const passphraseInput = screen.getByLabelText(/^passphrase$/i);
+        const confirmInput = screen.getByLabelText(/confirm passphrase/i);
+
+        await userEvent.type(passphraseInput, 'ValidPass1!');
+        await userEvent.type(confirmInput, 'DoesNotMatch');
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(/passphrases do not match/i);
+        expect(screen.getByRole('button', { name: /set up encryption/i })).toBeDisabled();
+    });
+
+    it('should enable the submit button only when the form is valid', async () => {
+      renderComponent({ hasExistingProfile: false });
+
+      const passphraseInput = screen.getByLabelText(/^passphrase$/i);
+      const confirmInput = screen.getByLabelText(/confirm passphrase/i);
+      const submitButton = screen.getByRole('button', { name: /set up encryption/i });
+
+      expect(submitButton).toBeDisabled();
+
+      await userEvent.type(passphraseInput, 'ValidPass1!');
+      await userEvent.type(confirmInput, 'ValidPass1!');
+
+      expect(submitButton).toBeEnabled();
+    });
+
+    it('should call onPassphraseSet on successful submission', async () => {
+      renderComponent({ hasExistingProfile: false });
+
+      const passphraseInput = screen.getByLabelText(/^passphrase$/i);
+      const confirmInput = screen.getByLabelText(/confirm passphrase/i);
+      const submitButton = screen.getByRole('button', { name: /set up encryption/i });
+
+      const validPassphrase = 'ThisIsAValidPassword1!';
+      await userEvent.type(passphraseInput, validPassphrase);
+      await userEvent.type(confirmInput, validPassphrase);
+      await userEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(mockValidatePassphrase).toHaveBeenCalledWith(validPassphrase);
+        expect(mockOnPassphraseSet).toHaveBeenCalledWith(validPassphrase);
+        expect(mockOnPassphraseVerified).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('in "Unlock" mode (hasExistingProfile: true)', () => {
+    it('should render the unlock form correctly', () => {
+      renderComponent({ hasExistingProfile: true });
+
+      expect(screen.getByRole('heading', { name: /enter passphrase/i })).toBeInTheDocument();
+      expect(screen.getByLabelText(/passphrase/i)).toBeInTheDocument();
+      expect(screen.queryByLabelText(/confirm passphrase/i)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /unlock profile/i })).toBeDisabled();
+    });
+
+    it('should enable the submit button when a passphrase is entered', async () => {
+        renderComponent({ hasExistingProfile: true });
+        const passphraseInput = screen.getByLabelText(/passphrase/i);
+        const submitButton = screen.getByRole('button', { name: /unlock profile/i });
+        
+        expect(submitButton).toBeDisabled();
+        await userEvent.type(passphraseInput, 'any-password');
+        expect(submitButton).toBeEnabled();
+    });
+
+    it('should call onPassphraseVerified on successful submission', async () => {
+      renderComponent({ hasExistingProfile: true });
+      const passphraseInput = screen.getByLabelText(/passphrase/i);
+      const submitButton = screen.getByRole('button', { name: /unlock profile/i });
+
+      const existingPassphrase = 'my-secret-password';
+      await userEvent.type(passphraseInput, existingPassphrase);
+      await userEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(mockOnPassphraseVerified).toHaveBeenCalledWith(existingPassphrase);
+        expect(mockOnPassphraseSet).not.toHaveBeenCalled();
+      });
+    });
+
+    it('should show "Processing..." and disable the button when isLoading is true', () => {
+        renderComponent({ hasExistingProfile: true, isLoading: true });
+        const submitButton = screen.getByRole('button', { name: /processing.../i });
+        expect(submitButton).toBeInTheDocument();
+        expect(submitButton).toBeDisabled();
+    });
+  });
+});
