@@ -96,7 +96,7 @@ type ManualStrategyAttribute =
   | 'name' 
   | 'autocomplete';
 
-type ManualSource = `manual-${ManualStrategyAttribute}` | `manual-${ManualStrategyAttribute}-tag`;
+export type ManualSource = `manual-${ManualStrategyAttribute}` | `manual-${ManualStrategyAttribute}-tag`;
 
 export interface SelectorCandidate {
   selector: string;
@@ -114,5 +114,5 @@ export interface SelectorResult {
 export type ExtractorMessage = 
   | { type: 'EXTRACT_FORMS'; payload: { forceExtraction?: boolean } }
   | { type: 'FORM_SCHEMA_EXTRACTED'; payload: ExtractedFormSchema }
-  | { type: 'MAPPING_READY'; payload: any }
-  | { type: 'EXTRACTION_ERROR'; payload: { error: string; details?: any } };
+  | { type: 'MAPPING_READY'; payload: Record<string, unknown> }
+  | { type: 'EXTRACTION_ERROR'; payload: { error: string; details?: Record<string, unknown> } };

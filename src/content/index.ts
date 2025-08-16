@@ -96,15 +96,16 @@ class JobApplicationCoPilot {
    */
   private async handleMessage(
     message: ExtractorMessage,
-    sender: chrome.runtime.MessageSender,
-    sendResponse: (response?: any) => void
+    _sender: chrome.runtime.MessageSender,
+    sendResponse: (response?: { success: boolean; data?: unknown; error?: string }) => void
   ): Promise<void> {
     try {
       switch (message.type) {
-        case 'EXTRACT_FORMS':
+        case 'EXTRACT_FORMS': {
           const schema = await this.extractionManager.forceExtraction();
           sendResponse({ success: true, data: schema });
           break;
+        }
 
         default:
           console.warn('Job Application Co-Pilot: Unknown message type:', message.type);
@@ -112,7 +113,8 @@ class JobApplicationCoPilot {
       }
     } catch (error) {
       console.error('Job Application Co-Pilot: Message handling failed:', error);
-      sendResponse({ success: false, error: error.message });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      sendResponse({ success: false, error: errorMessage });
     }
   }
 
@@ -168,7 +170,7 @@ class JobApplicationCoPilot {
   /**
    * Get extraction statistics for debugging
    */
-  getStats(): any {
+  getStats(): { isInitialized: boolean; extractionManager: unknown; url: string; timestamp: number } {
     return {
       isInitialized: this.isInitialized,
       extractionManager: this.extractionManager.getStats(),
@@ -192,7 +194,13 @@ class JobApplicationCoPilot {
 const coPilot = new JobApplicationCoPilot();
 
 // Make stats available for debugging
-(window as any).jobCoPilotStats = () => coPilot.getStats();
+declare global {
+  interface Window {
+    jobCoPilotStats: () => { isInitialized: boolean; extractionManager: unknown; url: string; timestamp: number };
+  }
+}
+
+window.jobCoPilotStats = () => coPilot.getStats();
 
 // Cleanup on page unload
 window.addEventListener('beforeunload', () => {

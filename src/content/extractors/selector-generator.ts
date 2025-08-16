@@ -6,11 +6,20 @@
  * Includes blacklisting of auto-generated framework classes.
  */
 
-import { SelectorCandidate, SelectorResult } from '../../types';
+import { SelectorCandidate, SelectorResult, ManualSource } from '../../types';
+
+type StrategyConfig = {
+  attr: string;
+  confidence: number;
+  validator?: (value: string) => boolean;
+  sourceKey: string; // Maps to ManualStrategyAttribute values
+};
 
 // Import the CSS selector generator library
-let loadingPromise: Promise<any> | null = null;
-let getCssSelector: any = null;
+type CssSelectorFunction = (element: Element, options?: Record<string, unknown>) => string;
+
+let loadingPromise: Promise<CssSelectorFunction | null> | null = null;
+let getCssSelector: CssSelectorFunction | null = null;
 
 // Race-condition-free dynamic import
 async function loadCssSelectorGenerator() {
@@ -21,7 +30,10 @@ async function loadCssSelectorGenerator() {
   if (!loadingPromise) {
     loadingPromise = import('css-selector-generator')
       .then(module => {
-        getCssSelector = (module as any).getCssSelector || (module as any).default?.getCssSelector || (module as any).default;
+        const moduleAny = module as Record<string, unknown>;
+        getCssSelector = (moduleAny.getCssSelector || 
+                         (moduleAny.default as Record<string, unknown>)?.getCssSelector || 
+                         moduleAny.default) as CssSelectorFunction;
         return getCssSelector;
       })
       .catch(error => {
@@ -85,14 +97,14 @@ export class SelectorGenerator {
     const candidates: SelectorCandidate[] = [];
   
     // Define strategies in order of descending priority.
-    const strategies = [
-      { attr: 'data-testid', confidence: 0.99 },
-      { attr: 'data-cy', confidence: 0.98 },
-      { attr: 'data-test', confidence: 0.97 },
-      { attr: 'data-automation-id', confidence: 0.95 },
-      { attr: 'id', confidence: 0.90, validator: this.isStableId },
-      { attr: 'name', confidence: 0.85 },
-      { attr: 'autocomplete', confidence: 0.80 },
+    const strategies: StrategyConfig[] = [
+      { attr: 'data-testid', confidence: 0.99, sourceKey: 'testid' },
+      { attr: 'data-cy', confidence: 0.98, sourceKey: 'cy' },
+      { attr: 'data-test', confidence: 0.97, sourceKey: 'test' },
+      { attr: 'data-automation-id', confidence: 0.95, sourceKey: 'automation-id' },
+      { attr: 'id', confidence: 0.90, validator: this.isStableId, sourceKey: 'id' },
+      { attr: 'name', confidence: 0.85, sourceKey: 'name' },
+      { attr: 'autocomplete', confidence: 0.80, sourceKey: 'autocomplete' },
     ];
   
     for (const strategy of strategies) {
@@ -113,14 +125,14 @@ export class SelectorGenerator {
         candidates.push({
           selector: `${element.tagName.toLowerCase()}${selector}`,
           confidence: strategy.confidence + 0.01,
-          source: `manual-${strategy.attr}-tag`,
+          source: `manual-${strategy.sourceKey}-tag` as ManualSource,
         });
   
         // Add the simpler candidate as a fallback.
         candidates.push({
           selector,
           confidence: strategy.confidence,
-          source: `manual-${strategy.attr}`,
+          source: `manual-${strategy.sourceKey}` as ManualSource,
         });
       }
     }
@@ -352,7 +364,7 @@ export class SelectorGenerator {
         const result = fn();
         clearTimeout(timeout);
         resolve(result);
-      } catch (error) {
+      } catch {
         clearTimeout(timeout);
         resolve(null);
       }

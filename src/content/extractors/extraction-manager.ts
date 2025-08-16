@@ -160,7 +160,9 @@ export class ExtractionManager {
   private sendMessageToBackground(message: ExtractorMessage): void {
     try {
       chrome.runtime.sendMessage(message).catch(() => {});
-    } catch (error) {}
+    } catch {
+      // Intentionally ignore errors when extension context is invalid
+    }
   }
 
   getStats() {

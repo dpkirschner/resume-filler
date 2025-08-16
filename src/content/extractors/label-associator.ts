@@ -27,7 +27,7 @@ export class LabelAssociator {
    */
   async associateLabel(element: HTMLFormElement): Promise<LabelResult> {
     if (!element) {
-      return { label: '', confidence: 0, source: 'invalid-input' };
+      return { label: '', confidence: 0, source: 'fallback' };
     }
     
     const strategies = [

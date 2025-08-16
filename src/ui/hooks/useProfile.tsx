@@ -161,7 +161,7 @@ export function useProfile(): UseProfileReturn {
     try {
       const exists = await hasProfile();
       setHasExistingProfile(exists);
-    } catch (error) {
+    } catch {
       // If storage check fails, default to false for safety
       setHasExistingProfile(false);
     }

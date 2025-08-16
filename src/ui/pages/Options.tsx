@@ -78,7 +78,7 @@ function OptionsApp() {
         setIsUnlocked(false);
         setCurrentPassphrase('');
         alert('All data has been deleted successfully.');
-      } catch (err) {
+      } catch {
         alert('Failed to delete data. Please try again.');
       }
     }
