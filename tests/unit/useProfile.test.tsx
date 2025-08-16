@@ -672,6 +672,256 @@ describe('useProfile Hook', () => {
     });
   });
 
+  describe('Profile Override and Closure Bug Prevention', () => {
+    it('should save correct profile when using profileOverride parameter', async () => {
+      const { result } = renderHook(() => useProfile());
+
+      // Load initial profile
+      mockStorage.loadProfile.mockResolvedValue(mockProfile);
+      await act(async () => {
+        await result.current.loadProfileData(testPassphrase);
+      });
+
+      // Create a new profile manually (simulating what field operations return)
+      const updatedProfile: UserProfile = [
+        ...mockProfile,
+        {
+          label: 'New Field',
+          value: 'New Value',
+          type: 'custom',
+          isSensitive: false,
+        }
+      ];
+
+      // Save with profileOverride to bypass closure issues
+      await act(async () => {
+        await result.current.saveProfileData(testPassphrase, updatedProfile);
+      });
+
+      // Should save the override profile, not the hook's current state
+      expect(mockStorage.saveProfile).toHaveBeenLastCalledWith(updatedProfile, testPassphrase);
+    });
+
+    it('should handle addField -> saveProfileData sequence correctly with profile override', async () => {
+      const { result } = renderHook(() => useProfile());
+
+      // Load initial profile
+      mockStorage.loadProfile.mockResolvedValue(mockProfile);
+      await act(async () => {
+        await result.current.loadProfileData(testPassphrase);
+      });
+
+      const newField = {
+        label: 'Test Field',
+        value: 'Test Value',
+        type: 'custom' as const,
+        isSensitive: false,
+      };
+
+      // Add field and capture the returned profile
+      let updatedProfile: UserProfile;
+      await act(async () => {
+        updatedProfile = await result.current.addField(newField);
+      });
+
+      // Save using the returned profile (simulating the Options component pattern)
+      await act(async () => {
+        await result.current.saveProfileData(testPassphrase, updatedProfile!);
+      });
+
+      // Should save the complete updated profile including the new field
+      const expectedProfile = [...mockProfile, newField];
+      expect(mockStorage.saveProfile).toHaveBeenLastCalledWith(expectedProfile, testPassphrase);
+    });
+
+    it('should handle updateField -> saveProfileData sequence correctly with profile override', async () => {
+      const { result } = renderHook(() => useProfile());
+
+      // Load initial profile
+      mockStorage.loadProfile.mockResolvedValue(mockProfile);
+      await act(async () => {
+        await result.current.loadProfileData(testPassphrase);
+      });
+
+      const fieldUpdates = { value: 'Updated Value' };
+
+      // Update field and capture the returned profile
+      let updatedProfile: UserProfile;
+      await act(async () => {
+        updatedProfile = await result.current.updateField(0, fieldUpdates);
+      });
+
+      // Save using the returned profile
+      await act(async () => {
+        await result.current.saveProfileData(testPassphrase, updatedProfile!);
+      });
+
+      // Should save the updated profile with the field modification
+      const expectedProfile = [
+        { ...mockProfile[0], value: 'Updated Value' },
+        mockProfile[1]
+      ];
+      expect(mockStorage.saveProfile).toHaveBeenLastCalledWith(expectedProfile, testPassphrase);
+    });
+
+    it('should handle removeField -> saveProfileData sequence correctly with profile override', async () => {
+      const { result } = renderHook(() => useProfile());
+
+      // Load initial profile
+      mockStorage.loadProfile.mockResolvedValue(mockProfile);
+      await act(async () => {
+        await result.current.loadProfileData(testPassphrase);
+      });
+
+      // Remove field and capture the returned profile
+      let updatedProfile: UserProfile;
+      await act(async () => {
+        updatedProfile = await result.current.removeField(0);
+      });
+
+      // Save using the returned profile
+      await act(async () => {
+        await result.current.saveProfileData(testPassphrase, updatedProfile!);
+      });
+
+      // Should save the profile with the field removed
+      const expectedProfile = [mockProfile[1]]; // First field removed
+      expect(mockStorage.saveProfile).toHaveBeenLastCalledWith(expectedProfile, testPassphrase);
+    });
+
+    it('should prevent the closure bug: rapid field operations + save + signout scenario', async () => {
+      const { result } = renderHook(() => useProfile());
+
+      // Load initial profile with one field
+      const initialProfile: UserProfile = [{
+        label: 'Initial Field',
+        value: 'Initial Value',
+        type: 'personal',
+        isSensitive: false,
+      }];
+      
+      mockStorage.loadProfile.mockResolvedValue(initialProfile);
+      await act(async () => {
+        await result.current.loadProfileData(testPassphrase);
+      });
+
+      // Simulate the bug scenario: add field + immediate save
+      const newField = {
+        label: 'New Field',
+        value: 'New Value',
+        type: 'custom' as const,
+        isSensitive: false,
+      };
+
+      let updatedProfile: UserProfile;
+      await act(async () => {
+        updatedProfile = await result.current.addField(newField);
+      });
+
+      // This is the critical test: save with profile override immediately after field addition
+      await act(async () => {
+        await result.current.saveProfileData(testPassphrase, updatedProfile!);
+      });
+
+      // Verify the save includes BOTH the original field AND the new field
+      expect(mockStorage.saveProfile).toHaveBeenLastCalledWith([
+        initialProfile[0],
+        newField
+      ], testPassphrase);
+
+      // Simulate sign out - profile state should show both fields before clearing
+      mockStorage.hasProfile.mockResolvedValue(true);
+      await act(async () => {
+        await result.current.clearProfile();
+      });
+
+      // Hook state should be cleared but storage should have been called with correct data
+      expect(result.current.profile).toBeNull();
+      
+      // Most importantly: the last save call should have included both fields
+      const lastSaveCall = mockStorage.saveProfile.mock.calls[mockStorage.saveProfile.mock.calls.length - 1];
+      expect(lastSaveCall[0]).toHaveLength(2); // Both fields saved
+      expect(lastSaveCall[0]).toEqual([initialProfile[0], newField]);
+    });
+
+    it('should handle multiple rapid field operations with profile override pattern', async () => {
+      const { result } = renderHook(() => useProfile());
+
+      // Start with empty profile
+      await act(async () => {
+        await result.current.saveProfileData(testPassphrase); // Initialize empty profile
+      });
+
+      // Rapid sequence: add -> add -> update -> save
+      let profile1: UserProfile, profile2: UserProfile, profile3: UserProfile;
+
+      await act(async () => {
+        profile1 = await result.current.addField({
+          label: 'Field 1',
+          value: 'Value 1',
+          type: 'personal',
+          isSensitive: false,
+        });
+      });
+
+      await act(async () => {
+        profile2 = await result.current.addField({
+          label: 'Field 2',
+          value: 'Value 2',
+          type: 'personal',
+          isSensitive: false,
+        });
+      });
+
+      await act(async () => {
+        profile3 = await result.current.updateField(0, { value: 'Updated Value 1' });
+      });
+
+      // Save the final state
+      await act(async () => {
+        await result.current.saveProfileData(testPassphrase, profile3);
+      });
+
+      // Verify final profile contains all operations
+      expect(mockStorage.saveProfile).toHaveBeenLastCalledWith([
+        { label: 'Field 1', value: 'Updated Value 1', type: 'personal', isSensitive: false },
+        { label: 'Field 2', value: 'Value 2', type: 'personal', isSensitive: false }
+      ], testPassphrase);
+    });
+
+    it('should fall back to current state when no profileOverride is provided', async () => {
+      const { result } = renderHook(() => useProfile());
+
+      // Load initial profile
+      mockStorage.loadProfile.mockResolvedValue(mockProfile);
+      await act(async () => {
+        await result.current.loadProfileData(testPassphrase);
+      });
+
+      // Add field (state is updated)
+      await act(async () => {
+        await result.current.addField({
+          label: 'New Field',
+          value: 'New Value',
+          type: 'custom',
+          isSensitive: false,
+        });
+      });
+
+      // Save without profileOverride (should use current state)
+      await act(async () => {
+        await result.current.saveProfileData(testPassphrase);
+      });
+
+      // Should save current hook state (which includes the new field)
+      const expectedProfile = [
+        ...mockProfile,
+        { label: 'New Field', value: 'New Value', type: 'custom', isSensitive: false }
+      ];
+      expect(mockStorage.saveProfile).toHaveBeenLastCalledWith(expectedProfile, testPassphrase);
+    });
+  });
+
   describe('Sign-Out Flow Integration', () => {
     it('should handle complete sign-out and sign-in cycle correctly', async () => {
       // Setup: Profile exists in storage

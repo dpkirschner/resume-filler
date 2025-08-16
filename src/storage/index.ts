@@ -39,19 +39,31 @@ export async function saveProfile(
   passphrase: string
 ): Promise<void> {
   try {
+    console.log('[storage] saveProfile called with data:', {
+      fieldCount: profileObject.length,
+      fields: profileObject.map(f => ({ label: f.label, type: f.type, hasValue: !!f.value }))
+    });
+    
     const salt = await getOrCreateSalt();
     const key = deriveKey(passphrase, salt);
     
-    const encrypted = CryptoJS.AES.encrypt(
-      JSON.stringify(profileObject), 
-      key
-    ).toString();
+    const profileJson = JSON.stringify(profileObject);
+    console.log('[storage] Profile JSON length:', profileJson.length);
+    
+    const encrypted = CryptoJS.AES.encrypt(profileJson, key).toString();
+    console.log('[storage] Encrypted data length:', encrypted.length);
     
     await chrome.storage.local.set({
       [STORAGE_KEYS.PROFILE]: encrypted
     });
+    
+    console.log('[storage] ✅ Profile successfully saved to chrome.storage.local');
+    
+    // Verify the save by immediately reading back
+    const verification = await chrome.storage.local.get(STORAGE_KEYS.PROFILE);
+    console.log('[storage] Save verification - data exists in storage:', !!verification[STORAGE_KEYS.PROFILE]);
   } catch (error) {
-    console.error('Failed to save profile:', error);
+    console.error('[storage] Failed to save profile:', error);
     throw new Error('Failed to encrypt and save profile data');
   }
 }

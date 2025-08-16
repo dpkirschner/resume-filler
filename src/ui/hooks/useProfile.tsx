@@ -7,11 +7,11 @@ export interface UseProfileReturn {
   isLoading: boolean;
   error: string | null;
   hasExistingProfile: boolean;
-  addField: (field: Omit<ProfileField, 'label'> & { label: string }) => Promise<void>;
-  updateField: (index: number, field: Partial<ProfileField>) => Promise<void>;
-  removeField: (index: number) => Promise<void>;
+  addField: (field: Omit<ProfileField, 'label'> & { label: string }) => Promise<UserProfile>;
+  updateField: (index: number, field: Partial<ProfileField>) => Promise<UserProfile>;
+  removeField: (index: number) => Promise<UserProfile>;
   loadProfileData: (passphrase: string) => Promise<boolean>;
-  saveProfileData: (passphrase: string) => Promise<void>;
+  saveProfileData: (passphrase: string, profileOverride?: UserProfile) => Promise<void>;
   clearProfile: () => Promise<void>;
 }
 
@@ -56,23 +56,45 @@ export function useProfile(): UseProfileReturn {
     }
   }, []);
 
-  const saveProfileData = useCallback(async (passphrase: string): Promise<void> => {
+  const saveProfileData = useCallback(async (passphrase: string, profileOverride?: UserProfile): Promise<void> => {
+    console.log('[useProfile] saveProfileData called');
+    
     setIsLoading(true);
     setError(null);
 
     try {
-      // Use current profile or default to empty array for first-time setup
-      const profileToSave = profile || [];
+      // Use profileOverride if provided, otherwise use current profile state
+      const profileToSave = profileOverride !== undefined ? profileOverride : (profile || []);
+      
+      if (profileOverride !== undefined) {
+        console.log('[useProfile] Using provided profile override to avoid closure issues');
+      }
+      
+      console.log('[useProfile] Current profile state:', {
+        profileExists: !!profileToSave,
+        fieldCount: profileToSave?.length || 0,
+        fields: profileToSave?.map(f => ({ label: f.label, type: f.type })) || []
+      });
+      
+      console.log('[useProfile] About to save profile:', {
+        fieldCount: profileToSave.length,
+        fields: profileToSave.map(f => ({ label: f.label, type: f.type, hasValue: !!f.value }))
+      });
+      
       await saveProfile(profileToSave, passphrase);
+      console.log('[useProfile] Profile saved successfully to storage');
       
       // Update state if we're initializing for the first time
-      if (!profile) {
+      if (!profile && !profileOverride) {
         setProfile(profileToSave);
+        console.log('[useProfile] Initialized profile state for first time');
       }
       
       setHasExistingProfile(true);
+      console.log('[useProfile] saveProfileData completed successfully');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save profile';
+      console.error('[useProfile] saveProfileData failed:', err);
       setError(errorMessage);
       throw err;
     } finally {
@@ -80,7 +102,9 @@ export function useProfile(): UseProfileReturn {
     }
   }, [profile]);
 
-  const addField = useCallback(async (field: Omit<ProfileField, 'label'> & { label: string }): Promise<void> => {
+  const addField = useCallback(async (field: Omit<ProfileField, 'label'> & { label: string }): Promise<UserProfile> => {
+    console.log('[useProfile] addField called:', { label: field.label, type: field.type });
+    
     const newField: ProfileField = {
       ...field,
       label: field.label.trim()
@@ -92,22 +116,36 @@ export function useProfile(): UseProfileReturn {
 
     // Get current profile for validation
     const currentProfile = profile || [];
+    console.log('[useProfile] Current profile before adding field:', {
+      fieldCount: currentProfile.length,
+      existingLabels: currentProfile.map(f => f.label)
+    });
+    
     const existingLabels = currentProfile.map(f => f.label.toLowerCase());
     if (existingLabels.includes(newField.label.toLowerCase())) {
       throw new Error('A field with this label already exists');
     }
 
-    setProfile(currentProfile => {
-      const newProfile = currentProfile ? [...currentProfile] : [];
-      newProfile.push(newField);
-      return newProfile;
+    const newProfile = [...currentProfile, newField];
+    console.log('[useProfile] Profile updated after addField:', {
+      fieldCount: newProfile.length,
+      newFieldLabel: newField.label,
+      allLabels: newProfile.map(f => f.label)
     });
+
+    setProfile(newProfile);
+    console.log('[useProfile] ✅ Field added to state - returning updated profile for immediate save');
+    return newProfile;
   }, [profile]);
 
-  const updateField = useCallback(async (index: number, fieldUpdates: Partial<ProfileField>): Promise<void> => {
+  const updateField = useCallback(async (index: number, fieldUpdates: Partial<ProfileField>): Promise<UserProfile> => {
+    console.log('[useProfile] updateField called:', { index, updates: fieldUpdates });
+    
     if (!profile || index < 0 || index >= profile.length) {
       throw new Error('Invalid field index');
     }
+
+    console.log('[useProfile] Current field before update:', profile[index]);
 
     // If updating label, check for duplicates
     if (fieldUpdates.label) {
@@ -125,47 +163,73 @@ export function useProfile(): UseProfileReturn {
       }
     }
 
-    setProfile(currentProfile => {
-      if (!currentProfile) return currentProfile;
-      
-      const newProfile = [...currentProfile];
-      newProfile[index] = {
-        ...newProfile[index],
-        ...fieldUpdates,
-        ...(fieldUpdates.label && { label: fieldUpdates.label.trim() })
-      };
+    const newProfile = [...profile];
+    const oldField = newProfile[index];
+    newProfile[index] = {
+      ...newProfile[index],
+      ...fieldUpdates,
+      ...(fieldUpdates.label && { label: fieldUpdates.label.trim() })
+    };
 
-      return newProfile;
+    console.log('[useProfile] Field updated:', {
+      index,
+      oldField,
+      newField: newProfile[index],
+      profileLength: newProfile.length
     });
+
+    setProfile(newProfile);
+    console.log('[useProfile] ✅ Field updated in state - returning updated profile for immediate save');
+    return newProfile;
   }, [profile]);
 
-  const removeField = useCallback(async (index: number): Promise<void> => {
+  const removeField = useCallback(async (index: number): Promise<UserProfile> => {
+    console.log('[useProfile] removeField called:', { index });
+    
     if (!profile || index < 0 || index >= profile.length) {
       throw new Error('Invalid field index');
     }
 
-    setProfile(currentProfile => {
-      if (!currentProfile) return currentProfile;
-      
-      const newProfile = [...currentProfile];
-      newProfile.splice(index, 1);
-      return newProfile;
+    const fieldToRemove = profile[index];
+    console.log('[useProfile] Removing field:', fieldToRemove);
+
+    const newProfile = [...profile];
+    newProfile.splice(index, 1);
+    console.log('[useProfile] Field removed:', {
+      removedField: fieldToRemove,
+      newFieldCount: newProfile.length
     });
+
+    setProfile(newProfile);
+    console.log('[useProfile] ✅ Field removed from state - returning updated profile for immediate save');
+    return newProfile;
   }, [profile]);
 
   const clearProfile = useCallback(async () => {
+    console.log('[useProfile] clearProfile called - signing out');
+    console.log('[useProfile] Current profile state before clearing:', {
+      profileExists: !!profile,
+      fieldCount: profile?.length || 0,
+      fields: profile?.map(f => ({ label: f.label, type: f.type })) || []
+    });
+    
     setProfile(null);
     setError(null);
+    console.log('[useProfile] Profile state cleared from memory');
     
     // Re-check if profile exists in storage (sign out doesn't delete encrypted data)
     try {
       const exists = await hasProfile();
       setHasExistingProfile(exists);
-    } catch {
+      console.log('[useProfile] Profile existence check after clearProfile:', { exists });
+    } catch (error) {
       // If storage check fails, default to false for safety
+      console.error('[useProfile] Failed to check profile existence after clear:', error);
       setHasExistingProfile(false);
     }
-  }, []);
+    
+    console.log('[useProfile] ⚠️  Profile cleared from memory - any unsaved changes are LOST!');
+  }, [profile]);
 
   return {
     profile,

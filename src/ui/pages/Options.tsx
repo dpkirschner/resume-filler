@@ -50,23 +50,23 @@ function OptionsApp() {
   };
 
   const handleAddField = async (field: ProfileField) => {
-    await addField(field);
+    const updatedProfile = await addField(field);
     if (currentPassphrase) {
-      await saveProfileData(currentPassphrase);
+      await saveProfileData(currentPassphrase, updatedProfile);
     }
   };
 
   const handleUpdateField = async (index: number, field: Partial<ProfileField>) => {
-    await updateField(index, field);
+    const updatedProfile = await updateField(index, field);
     if (currentPassphrase) {
-      await saveProfileData(currentPassphrase);
+      await saveProfileData(currentPassphrase, updatedProfile);
     }
   };
 
   const handleRemoveField = async (index: number) => {
-    await removeField(index);
+    const updatedProfile = await removeField(index);
     if (currentPassphrase) {
-      await saveProfileData(currentPassphrase);
+      await saveProfileData(currentPassphrase, updatedProfile);
     }
   };
 
