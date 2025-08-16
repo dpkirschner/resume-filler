@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useProfile } from '../hooks/useProfile';
@@ -8,8 +7,11 @@ import { ProfileList } from '../components/ProfileList';
 import { Button } from '../components/common/Button';
 import { Modal } from '../components/common/Modal';
 import { clearAllData } from '../../storage';
+import { Logger } from '../../utils';
 
-function OptionsApp() {
+const logger = new Logger('Options');
+
+export function OptionsApp() {
   const {
     profile,
     isLoading,
@@ -37,7 +39,7 @@ function OptionsApp() {
       }
       setIsUnlocked(true);
     } catch (err) {
-      console.error('Failed to set passphrase:', err);
+      logger.error('Failed to set passphrase:', err);
     }
   };
 

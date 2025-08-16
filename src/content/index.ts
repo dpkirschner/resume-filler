@@ -8,6 +8,9 @@
 
 import { ExtractionManager } from './extractors/extraction-manager';
 import { ExtractorMessage } from '../types';
+import { Logger } from '../utils';
+
+const logger = new Logger('ContentScript');
 
 class JobApplicationCoPilot {
   private extractionManager: ExtractionManager;
@@ -23,7 +26,7 @@ class JobApplicationCoPilot {
    */
   private async init(): Promise<void> {
     try {
-      console.log('Job Application Co-Pilot: Initializing content script');
+      logger.info('Job Application Co-Pilot: Initializing content script');
 
       // Wait for DOM to be ready
       if (document.readyState === 'loading') {
@@ -41,10 +44,10 @@ class JobApplicationCoPilot {
       });
 
       this.isInitialized = true;
-      console.log('Job Application Co-Pilot: Content script initialized successfully');
+      logger.info('Job Application Co-Pilot: Content script initialized successfully');
 
     } catch (error) {
-      console.error('Job Application Co-Pilot: Failed to initialize:', error);
+      logger.error('Job Application Co-Pilot: Failed to initialize:', error);
     }
   }
 
@@ -52,7 +55,7 @@ class JobApplicationCoPilot {
    * Handle DOM ready event
    */
   private onDOMReady(): void {
-    console.log('Job Application Co-Pilot: DOM ready, starting form detection');
+    logger.info('Job Application Co-Pilot: DOM ready, starting form detection');
 
     // Perform initial form extraction
     this.performInitialExtraction();
@@ -69,15 +72,15 @@ class JobApplicationCoPilot {
       const schema = await this.extractionManager.forceExtraction();
       
       if (schema && schema.fields.length > 0) {
-        console.log(`Job Application Co-Pilot: Found ${schema.fields.length} form fields on page load`);
+        logger.info(`Job Application Co-Pilot: Found ${schema.fields.length} form fields on page load`);
         
         // Show subtle indicator that forms were detected
         this.showFormDetectionIndicator(schema.fields.length);
       } else {
-        console.log('Job Application Co-Pilot: No form fields detected on page load');
+        logger.info('Job Application Co-Pilot: No form fields detected on page load');
       }
     } catch (error) {
-      console.error('Job Application Co-Pilot: Initial extraction failed:', error);
+      logger.error('Job Application Co-Pilot: Initial extraction failed:', error);
     }
   }
 
@@ -108,11 +111,11 @@ class JobApplicationCoPilot {
         }
 
         default:
-          console.warn('Job Application Co-Pilot: Unknown message type:', message.type);
+          logger.warn('Job Application Co-Pilot: Unknown message type:', message.type);
           sendResponse({ success: false, error: 'Unknown message type' });
       }
     } catch (error) {
-      console.error('Job Application Co-Pilot: Message handling failed:', error);
+      logger.error('Job Application Co-Pilot: Message handling failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       sendResponse({ success: false, error: errorMessage });
     }
@@ -163,7 +166,7 @@ class JobApplicationCoPilot {
 
     } catch (error) {
       // Silently ignore indicator errors
-      console.debug('Failed to show form detection indicator:', error);
+      logger.debug('Failed to show form detection indicator:', error);
     }
   }
 
@@ -207,4 +210,4 @@ window.addEventListener('beforeunload', () => {
   coPilot.destroy();
 });
 
-console.log('Job Application Co-Pilot: Content script loaded and ready');
+logger.info('Job Application Co-Pilot: Content script loaded and ready');

@@ -1,11 +1,14 @@
 import CryptoJS from 'crypto-js';
 import { UserProfile, UserSettings, STORAGE_KEYS } from '../types';
+import { Logger } from '../utils';
 
 /**
  * Encrypted storage module for Chrome Extension
  * Implements Task 2 from Phase 1: Encrypted Storage
  * All profile data is encrypted before storing in chrome.storage.local
  */
+
+const logger = new Logger('storage');
 
 // Generate or retrieve encryption salt
 async function getOrCreateSalt(): Promise<string> {
@@ -39,7 +42,7 @@ export async function saveProfile(
   passphrase: string
 ): Promise<void> {
   try {
-    console.log('[storage] saveProfile called with data:', {
+    logger.debug('[storage] saveProfile called with data:', {
       fieldCount: profileObject.length,
       fields: profileObject.map(f => ({ label: f.label, type: f.type, hasValue: !!f.value }))
     });
@@ -48,22 +51,22 @@ export async function saveProfile(
     const key = deriveKey(passphrase, salt);
     
     const profileJson = JSON.stringify(profileObject);
-    console.log('[storage] Profile JSON length:', profileJson.length);
+    logger.debug('[storage] Profile JSON length:', profileJson.length);
     
     const encrypted = CryptoJS.AES.encrypt(profileJson, key).toString();
-    console.log('[storage] Encrypted data length:', encrypted.length);
+    logger.debug('[storage] Encrypted data length:', encrypted.length);
     
     await chrome.storage.local.set({
       [STORAGE_KEYS.PROFILE]: encrypted
     });
     
-    console.log('[storage] ✅ Profile successfully saved to chrome.storage.local');
+    logger.info('[storage] ✅ Profile successfully saved to chrome.storage.local');
     
     // Verify the save by immediately reading back
     const verification = await chrome.storage.local.get(STORAGE_KEYS.PROFILE);
-    console.log('[storage] Save verification - data exists in storage:', !!verification[STORAGE_KEYS.PROFILE]);
+    logger.debug('[storage] Save verification - data exists in storage:', !!verification[STORAGE_KEYS.PROFILE]);
   } catch (error) {
-    console.error('[storage] Failed to save profile:', error);
+    logger.error('[storage] Failed to save profile:', error);
     throw new Error('Failed to encrypt and save profile data');
   }
 }
@@ -94,7 +97,7 @@ export async function loadProfile(passphrase: string): Promise<UserProfile | nul
     
     return JSON.parse(decryptedString) as UserProfile;
   } catch (error) {
-    console.error('Failed to load profile:', error);
+    logger.error('Failed to load profile:', error);
     return null;
   }
 }
@@ -122,7 +125,7 @@ export async function saveSettings(
       [STORAGE_KEYS.SETTINGS]: settingsToStore
     });
   } catch (error) {
-    console.error('Failed to save settings:', error);
+    logger.error('Failed to save settings:', error);
     throw new Error('Failed to save settings');
   }
 }
@@ -158,7 +161,7 @@ export async function loadSettings(passphrase?: string): Promise<UserSettings | 
     
     return settings;
   } catch (error) {
-    console.error('Failed to load settings:', error);
+    logger.error('Failed to load settings:', error);
     return null;
   }
 }
@@ -174,7 +177,7 @@ export async function clearAllData(): Promise<void> {
       STORAGE_KEYS.ENCRYPTION_SALT
     ]);
   } catch (error) {
-    console.error('Failed to clear data:', error);
+    logger.error('Failed to clear data:', error);
     throw new Error('Failed to clear stored data');
   }
 }

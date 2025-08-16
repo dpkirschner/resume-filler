@@ -7,6 +7,9 @@
 
 import { FormExtractor } from './form-extractor';
 import { ExtractedFormSchema, ExtractorMessage } from '../../types';
+import { Logger } from '../../utils';
+
+const logger = new Logger('extraction-manager');
 
 export class ExtractionManager {
   private formExtractor: FormExtractor;
@@ -29,7 +32,7 @@ export class ExtractionManager {
 
   private initializeMutationObserver(): void {
     if (!window.MutationObserver) {
-      console.warn('MutationObserver not supported');
+      logger.warn('MutationObserver not supported');
       return;
     }
 
@@ -56,9 +59,9 @@ export class ExtractionManager {
         characterData: false,
       });
       this.isObserving = true;
-      console.debug('ExtractionManager: MutationObserver started');
+      logger.debug('ExtractionManager: MutationObserver started');
     } catch (error) {
-      console.error('Failed to start MutationObserver:', error);
+      logger.error('Failed to start MutationObserver:', error);
     }
   }
 
@@ -66,7 +69,7 @@ export class ExtractionManager {
     if (this.mutationObserver) {
       this.mutationObserver.disconnect();
       this.isObserving = false;
-      console.debug('ExtractionManager: MutationObserver stopped');
+      logger.debug('ExtractionManager: MutationObserver stopped');
     }
     this.clearTimers();
   }
@@ -86,7 +89,7 @@ export class ExtractionManager {
 
     if (!this.maxDelayTimer) {
       this.maxDelayTimer = window.setTimeout(() => {
-        console.debug('ExtractionManager: Forcing extraction due to max delay timeout');
+        logger.debug('ExtractionManager: Forcing extraction due to max delay timeout');
         this.clearTimers();
         this.performExtraction();
       }, this.MAX_EXTRACTION_DELAY);
@@ -114,7 +117,7 @@ export class ExtractionManager {
       });
       return schema;
     } catch (error) {
-      console.error('ExtractionManager: Extraction failed:', error);
+      logger.error('ExtractionManager: Extraction failed:', error);
       this.sendMessageToBackground({
         type: 'EXTRACTION_ERROR',
         payload: { error: error instanceof Error ? error.message : 'Unknown error' }

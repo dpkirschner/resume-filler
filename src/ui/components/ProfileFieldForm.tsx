@@ -1,9 +1,12 @@
 import { useForm } from 'react-hook-form';
 import { ProfileField, WorkExperience } from '../../types';
+import { Logger } from '../../utils';
 import { Button } from './common/Button';
 import { Input } from './common/Input';
 import { Modal } from './common/Modal';
 import { useEffect } from 'react';
+
+const logger = new Logger('ProfileFieldForm');
 
 export interface ProfileFieldFormProps {
   isOpen: boolean;
@@ -89,7 +92,7 @@ export function ProfileFieldForm({
       reset();
       onClose();
     } catch (error) {
-      console.error('Failed to submit field:', error);
+      logger.error('Failed to submit field:', error);
     }
   };
 

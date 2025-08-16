@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import { UserProfile, ProfileField } from '../../types';
 import { saveProfile, loadProfile, hasProfile } from '../../storage';
+import { Logger } from '../../utils';
+
+const logger = new Logger('useProfile');
 
 export interface UseProfileReturn {
   profile: UserProfile | null;
@@ -206,8 +209,8 @@ export function useProfile(): UseProfileReturn {
   }, [profile]);
 
   const clearProfile = useCallback(async () => {
-    console.log('[useProfile] clearProfile called - signing out');
-    console.log('[useProfile] Current profile state before clearing:', {
+    logger.info('clearProfile called - signing out');
+    logger.debug('Current profile state before clearing:', {
       profileExists: !!profile,
       fieldCount: profile?.length || 0,
       fields: profile?.map(f => ({ label: f.label, type: f.type })) || []
@@ -215,20 +218,20 @@ export function useProfile(): UseProfileReturn {
     
     setProfile(null);
     setError(null);
-    console.log('[useProfile] Profile state cleared from memory');
+    logger.info('Profile state cleared from memory');
     
     // Re-check if profile exists in storage (sign out doesn't delete encrypted data)
     try {
       const exists = await hasProfile();
       setHasExistingProfile(exists);
-      console.log('[useProfile] Profile existence check after clearProfile:', { exists });
+      logger.debug('Profile existence check after clearProfile:', { exists });
     } catch (error) {
       // If storage check fails, default to false for safety
-      console.error('[useProfile] Failed to check profile existence after clear:', error);
+      logger.error('Failed to check profile existence after clear:', error);
       setHasExistingProfile(false);
     }
     
-    console.log('[useProfile] ⚠️  Profile cleared from memory - any unsaved changes are LOST!');
+    logger.warn('⚠️  Profile cleared from memory - any unsaved changes are LOST!');
   }, [profile]);
 
   return {

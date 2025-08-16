@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useProfile } from '../hooks/useProfile';
@@ -7,8 +6,11 @@ import { EncryptionSettings } from '../components/EncryptionSettings';
 import { ProfileList } from '../components/ProfileList';
 import { Button } from '../components/common/Button';
 import { Modal } from '../components/common/Modal';
+import { Logger } from '../../utils';
 
-function PopupApp() {
+const logger = new Logger('Popup');
+
+export function PopupApp() {
   const {
     profile,
     isLoading,
@@ -28,22 +30,26 @@ function PopupApp() {
 
   const handlePassphraseSet = async (passphrase: string) => {
     try {
+      logger.debug('Attempting to set passphrase');
       setCurrentPassphrase(passphrase);
       // For new profiles, create empty profile and save it
       if (!hasExistingProfile) {
         await saveProfileData(passphrase);
       }
       setIsUnlocked(true);
+      logger.info('Passphrase set and user is unlocked');
     } catch (err) {
-      console.error('Failed to set passphrase:', err);
+      logger.error('Failed to set passphrase:', err);
     }
   };
 
   const handlePassphraseVerified = async (passphrase: string) => {
+    logger.debug('Attempting to verify passphrase');
     const success = await loadProfileData(passphrase);
     if (success) {
       setCurrentPassphrase(passphrase);
       setIsUnlocked(true);
+      logger.info('Passphrase verified and user is unlocked');
     }
   };
 

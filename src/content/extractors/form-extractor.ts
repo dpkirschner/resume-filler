@@ -14,9 +14,12 @@ import {
   SelectOption,
   GeometricValidationConfig
 } from '../../types';
+import { Logger } from '../../utils';
 import { LabelAssociator } from './label-associator';
 import { SelectorGenerator } from './selector-generator';
 import { GeometricValidator } from './geometric-validator';
+
+const logger = new Logger('FormExtractor');
 
 export class FormExtractor {
   private labelAssociator: LabelAssociator;
@@ -84,7 +87,7 @@ export class FormExtractor {
       };
 
     } catch (error) {
-      console.error('Form extraction failed:', error);
+      logger.error('Form extraction failed:', error);
       throw new Error(`Form extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

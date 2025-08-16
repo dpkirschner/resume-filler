@@ -7,6 +7,9 @@
  */
 
 import { SelectorCandidate, SelectorResult, ManualSource } from '../../types';
+import { Logger } from '../../utils';
+
+const logger = new Logger('SelectorGenerator');
 
 type StrategyConfig = {
   attr: string;
@@ -293,7 +296,7 @@ export class SelectorGenerator {
         
       } catch (error) {
         // Invalid selector - skip
-        console.debug(`Invalid selector "${candidate.selector}":`, error);
+        logger.debug(`Invalid selector "${candidate.selector}":`, error);
       }
     }
 

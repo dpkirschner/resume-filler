@@ -20,7 +20,20 @@ describe('EncryptionSettings', () => {
     mockValidatePassphrase = jest.fn().mockReturnValue(true);
 
     mockUseEncryption.mockReturnValue({
+      passphrase: '',
+      setPassphrase: jest.fn(),
+      isValidPassphrase: false,
+      passphraseError: null,
+      validationState: {
+        minLength: false,
+        hasUpperCase: false,
+        hasLowerCase: false,
+        hasNumber: false,
+        hasSpecialChar: false,
+        allRequirementsMet: false,
+      },
       validatePassphrase: mockValidatePassphrase,
+      clearPassphrase: jest.fn(),
     });
   });
 
@@ -41,6 +54,21 @@ describe('EncryptionSettings', () => {
   describe('in "Set Up" mode (hasExistingProfile: false)', () => {
     it('should render the setup form correctly', () => {
       renderComponent({ hasExistingProfile: false });
+
+      // Mock the validation state for this specific test
+      mockUseEncryption.mockReturnValueOnce({
+        validatePassphrase: mockValidatePassphrase,
+        validationState: {
+          minLength: false,
+          hasUpperCase: false,
+          hasLowerCase: false,
+          hasNumber: false,
+          hasSpecialChar: false,
+          allRequirementsMet: false,
+        },
+        setPassphrase: jest.fn(),
+        isValidPassphrase: false,
+      });
 
       expect(screen.getByRole('heading', { name: /set up encryption/i })).toBeInTheDocument();
       
@@ -132,6 +160,22 @@ describe('EncryptionSettings', () => {
         const submitButton = screen.getByRole('button', { name: /unlock profile/i });
         
         expect(submitButton).toBeDisabled();
+        
+        // Mock the validation state to be true for this specific test
+        mockUseEncryption.mockReturnValueOnce({
+          validatePassphrase: mockValidatePassphrase,
+          validationState: {
+            minLength: true,
+            hasUpperCase: false,
+            hasLowerCase: false,
+            hasNumber: false,
+            hasSpecialChar: false,
+            allRequirementsMet: false,
+          },
+          setPassphrase: jest.fn(),
+          isValidPassphrase: true, // Only isValidPassphrase matters for this test
+        });
+
         await userEvent.type(passphraseInput, 'any-password');
         expect(submitButton).toBeEnabled();
     });
@@ -143,6 +187,22 @@ describe('EncryptionSettings', () => {
 
       const existingPassphrase = 'my-secret-password';
       await userEvent.type(passphraseInput, existingPassphrase);
+      
+      // Mock the validation state to be true for this specific test
+      mockUseEncryption.mockReturnValueOnce({
+        validatePassphrase: mockValidatePassphrase,
+        validationState: {
+          minLength: true,
+          hasUpperCase: true,
+          hasLowerCase: true,
+          hasNumber: true,
+          hasSpecialChar: true,
+          allRequirementsMet: true,
+        },
+        setPassphrase: jest.fn(),
+        isValidPassphrase: true,
+      });
+
       await userEvent.click(submitButton);
 
       await waitFor(() => {
@@ -153,6 +213,22 @@ describe('EncryptionSettings', () => {
 
     it('should show "Processing..." and disable the button when isLoading is true', () => {
         renderComponent({ hasExistingProfile: true, isLoading: true });
+        
+        // Mock the validation state for this specific test
+        mockUseEncryption.mockReturnValueOnce({
+          validatePassphrase: mockValidatePassphrase,
+          validationState: {
+            minLength: true,
+            hasUpperCase: true,
+            hasLowerCase: true,
+            hasNumber: true,
+            hasSpecialChar: true,
+            allRequirementsMet: true,
+          },
+          setPassphrase: jest.fn(),
+          isValidPassphrase: true,
+        });
+
         const submitButton = screen.getByRole('button', { name: /processing.../i });
         expect(submitButton).toBeInTheDocument();
         expect(submitButton).toBeDisabled();

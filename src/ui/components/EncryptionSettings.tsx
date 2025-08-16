@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { useEncryption } from '../hooks/useEncryption';
 import { Button } from './common/Button';
 import { Input } from './common/Input';
+import { PassphraseRequirements } from './common/PassphraseRequirements';
 
 export interface EncryptionSettingsProps {
   onPassphraseSet: (passphrase: string) => void;
@@ -23,7 +24,7 @@ export function EncryptionSettings({
   isLoading = false
 }: EncryptionSettingsProps) {
   const [showPassword, setShowPassword] = useState(false);
-  const { validatePassphrase } = useEncryption();
+  const { validationState, validatePassphrase } = useEncryption();
   
   const {
     register,
@@ -143,19 +144,7 @@ export function EncryptionSettings({
                 placeholder="Confirm your passphrase"
               />
 
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                <h4 className="text-sm font-medium text-blue-900 mb-1">
-                  Passphrase Requirements:
-                </h4>
-                <ul className="text-xs text-blue-800 space-y-1">
-                  <li>• At least 8 characters long</li>
-                  <li>• Include at least 3 of the following:</li>
-                  <li className="ml-4">- Uppercase letters (A-Z)</li>
-                  <li className="ml-4">- Lowercase letters (a-z)</li>
-                  <li className="ml-4">- Numbers (0-9)</li>
-                  <li className="ml-4">- Special characters (!@#$%^&*)</li>
-                </ul>
-              </div>
+              <PassphraseRequirements validationState={validationState} />
             </>
           )}
 
