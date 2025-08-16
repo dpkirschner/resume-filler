@@ -6,6 +6,7 @@ export interface PassphraseValidationState {
   hasLowerCase: boolean;
   hasNumber: boolean;
   hasSpecialChar: boolean;
+  confirmationMatches: boolean;
   allRequirementsMet: boolean;
 }
 
@@ -15,7 +16,7 @@ export interface UseEncryptionReturn {
   isValidPassphrase: boolean;
   passphraseError: string | null;
   validationState: PassphraseValidationState;
-  validatePassphrase: (passphrase: string) => boolean;
+  validatePassphrase: (passphrase: string, confirmPassphrase?: string) => boolean;
   clearPassphrase: () => void;
 }
 
@@ -25,6 +26,7 @@ const initialValidationState: PassphraseValidationState = {
   hasLowerCase: false,
   hasNumber: false,
   hasSpecialChar: false,
+  confirmationMatches: false,
   allRequirementsMet: false,
 };
 
@@ -36,17 +38,25 @@ export function useEncryption(): UseEncryptionReturn {
   const [passphraseError, setPassphraseError] = useState<string | null>(null);
   const [validationState, setValidationState] = useState<PassphraseValidationState>(initialValidationState);
 
-  const validatePassphrase = useCallback((passphrase: string): boolean => {
+  const validatePassphrase = useCallback((passphrase: string, confirmPassphrase?: string): boolean => {
     const minLength = passphrase.length >= 8;
     const hasUpperCase = /[A-Z]/.test(passphrase);
     const hasLowerCase = /[a-z]/.test(passphrase);
     const hasNumber = /\d/.test(passphrase);
     const hasSpecialChar = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(passphrase);
+    
+    // Confirmation logic:
+    // - If confirmPassphrase is provided, we're in setup mode and both must match (and be non-empty)
+    // - If no confirmPassphrase provided (undefined), we're in unlock mode (no confirmation needed)
+    const isUnlockMode = confirmPassphrase === undefined;
+    const confirmationMatches = isUnlockMode 
+      ? true 
+      : confirmPassphrase !== '' && passphrase === confirmPassphrase;
 
     const requirements = [hasUpperCase, hasLowerCase, hasNumber, hasSpecialChar];
     const metRequirements = requirements.filter(Boolean).length;
 
-    const allRequirementsMet = minLength && metRequirements >= 3;
+    const allRequirementsMet = minLength && metRequirements >= 3 && confirmationMatches;
 
     setValidationState({
       minLength,
@@ -54,6 +64,7 @@ export function useEncryption(): UseEncryptionReturn {
       hasLowerCase,
       hasNumber,
       hasSpecialChar,
+      confirmationMatches,
       allRequirementsMet,
     });
 
@@ -62,14 +73,20 @@ export function useEncryption(): UseEncryptionReturn {
       return false;
     }
 
-    if (!allRequirementsMet) {
-      if (!minLength) {
-        setPassphraseError('Passphrase must be at least 8 characters long');
-      } else {
-        setPassphraseError(
-          'Passphrase must contain at least 3 of the following: uppercase letters, lowercase letters, numbers, special characters'
-        );
-      }
+    if (!minLength) {
+      setPassphraseError('Passphrase must be at least 8 characters long');
+      return false;
+    }
+
+    if (metRequirements < 3) {
+      setPassphraseError(
+        'Passphrase must contain at least 3 of the following: uppercase letters, lowercase letters, numbers, special characters'
+      );
+      return false;
+    }
+
+    if (!confirmationMatches && confirmPassphrase !== '') {
+      setPassphraseError('Passphrases do not match');
       return false;
     }
 

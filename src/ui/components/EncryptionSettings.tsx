@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useEncryption } from '../hooks/useEncryption';
 import { Button } from './common/Button';
@@ -35,6 +35,17 @@ export function EncryptionSettings({
 
   const passphrase = watch('passphrase', '');
   const confirmPassphrase = watch('confirmPassphrase', '');
+
+  // Sync form passphrase with useEncryption hook for real-time validation
+  useEffect(() => {
+    if (!hasExistingProfile) {
+      // Setup mode: pass both passphrase and confirmation
+      validatePassphrase(passphrase || '', confirmPassphrase || '');
+    } else {
+      // Unlock mode: only validate passphrase, no confirmation needed
+      validatePassphrase(passphrase || '');
+    }
+  }, [passphrase, confirmPassphrase, validatePassphrase, hasExistingProfile]);
 
   const onSubmit = async (data: PassphraseFormData) => {
     if (hasExistingProfile) {
