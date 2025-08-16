@@ -57,15 +57,19 @@ export function useProfile(): UseProfileReturn {
   }, []);
 
   const saveProfileData = useCallback(async (passphrase: string): Promise<void> => {
-    if (!profile) {
-      throw new Error('No profile data to save');
-    }
-
     setIsLoading(true);
     setError(null);
 
     try {
-      await saveProfile(profile, passphrase);
+      // Use current profile or default to empty array for first-time setup
+      const profileToSave = profile || [];
+      await saveProfile(profileToSave, passphrase);
+      
+      // Update state if we're initializing for the first time
+      if (!profile) {
+        setProfile(profileToSave);
+      }
+      
       setHasExistingProfile(true);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save profile';

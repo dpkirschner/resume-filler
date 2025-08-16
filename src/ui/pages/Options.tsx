@@ -29,6 +29,8 @@ function OptionsApp() {
     try {
       setCurrentPassphrase(passphrase);
       if (!hasExistingProfile) {
+        // saveProfileData now handles the case where profile is null
+        // by defaulting to an empty array for first-time setup
         await saveProfileData(passphrase);
       }
       setIsUnlocked(true);

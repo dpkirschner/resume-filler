@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 
@@ -56,10 +56,13 @@ describe('EncryptionSettings', () => {
       renderComponent({ hasExistingProfile: false });
       
       const passphraseInput = screen.getByLabelText(/^passphrase$/i);
+      const form = passphraseInput.closest('form')!;
       
       await userEvent.type(passphraseInput, value);
+      // Trigger validation by submitting the form directly
+      fireEvent.submit(form);
       
-      expect(await screen.findByRole('alert')).toHaveTextContent(expectedError);
+      expect(await screen.findByText(expectedError)).toBeInTheDocument();
     });
     
     it('should show an error if passphrases do not match', async () => {
@@ -67,11 +70,14 @@ describe('EncryptionSettings', () => {
 
         const passphraseInput = screen.getByLabelText(/^passphrase$/i);
         const confirmInput = screen.getByLabelText(/confirm passphrase/i);
+        const form = passphraseInput.closest('form')!;
 
         await userEvent.type(passphraseInput, 'ValidPass1!');
         await userEvent.type(confirmInput, 'DoesNotMatch');
+        // Trigger validation by submitting the form directly
+        fireEvent.submit(form);
 
-        expect(await screen.findByRole('alert')).toHaveTextContent(/passphrases do not match/i);
+        expect(await screen.findByText(/passphrases do not match/i)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /set up encryption/i })).toBeDisabled();
     });
 

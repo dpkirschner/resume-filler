@@ -153,13 +153,22 @@ describe('useProfile Hook', () => {
       expect(result.current.error).toBeNull();
     });
 
-    it('should throw error when no profile data exists', async () => {
+    it('should create empty profile when no profile data exists (first-time setup)', async () => {
       const { result } = renderHook(() => useProfile());
 
+      // Verify initial state is null
+      expect(result.current.profile).toBeNull();
+      expect(result.current.hasExistingProfile).toBe(false);
+
       await act(async () => {
-        await expect(result.current.saveProfileData(testPassphrase))
-          .rejects.toThrow('No profile data to save');
+        await result.current.saveProfileData(testPassphrase);
       });
+
+      // Should save empty array and update state
+      expect(mockStorage.saveProfile).toHaveBeenCalledWith([], testPassphrase);
+      expect(result.current.profile).toEqual([]);
+      expect(result.current.hasExistingProfile).toBe(true);
+      expect(result.current.error).toBeNull();
     });
 
     it('should handle save errors', async () => {
@@ -179,6 +188,223 @@ describe('useProfile Hook', () => {
       });
 
       expect(result.current.error).toBe(errorMessage);
+    });
+
+    it('should handle save errors during first-time setup', async () => {
+      const errorMessage = 'Storage initialization failed';
+      mockStorage.saveProfile.mockRejectedValue(new Error(errorMessage));
+      
+      const { result } = renderHook(() => useProfile());
+
+      await act(async () => {
+        await expect(result.current.saveProfileData(testPassphrase))
+          .rejects.toThrow(errorMessage);
+      });
+
+      // State should not be updated on failure
+      expect(result.current.profile).toBeNull();
+      expect(result.current.hasExistingProfile).toBe(false);
+      expect(result.current.error).toBe(errorMessage);
+    });
+
+    it('should set loading state during first-time profile creation', async () => {
+      let resolvePromise: () => void;
+      const savePromise = new Promise<void>(resolve => {
+        resolvePromise = resolve;
+      });
+      mockStorage.saveProfile.mockReturnValue(savePromise);
+
+      const { result } = renderHook(() => useProfile());
+
+      act(() => {
+        result.current.saveProfileData(testPassphrase);
+      });
+
+      expect(result.current.isLoading).toBe(true);
+
+      await act(async () => {
+        resolvePromise!();
+        await savePromise;
+      });
+
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    it('should allow adding fields after first-time profile creation', async () => {
+      const { result } = renderHook(() => useProfile());
+
+      // Create empty profile first
+      await act(async () => {
+        await result.current.saveProfileData(testPassphrase);
+      });
+
+      expect(result.current.profile).toEqual([]);
+
+      // Add a field to the empty profile
+      const newField = {
+        label: 'Full Name',
+        value: 'John Doe',
+        type: 'personal' as const,
+        isSensitive: false,
+      };
+
+      await act(async () => {
+        await result.current.addField(newField);
+      });
+
+      expect(result.current.profile).toHaveLength(1);
+      expect(result.current.profile?.[0]).toEqual(newField);
+    });
+  });
+
+  describe('First-Time Profile Setup Integration', () => {
+    it('should complete full first-time setup workflow', async () => {
+      const { result } = renderHook(() => useProfile());
+
+      // 1. Initial state - no profile exists
+      expect(result.current.profile).toBeNull();
+      expect(result.current.hasExistingProfile).toBe(false);
+
+      // 2. Create encrypted storage with empty profile
+      await act(async () => {
+        await result.current.saveProfileData(testPassphrase);
+      });
+
+      // 3. Verify profile was initialized
+      expect(mockStorage.saveProfile).toHaveBeenCalledWith([], testPassphrase);
+      expect(result.current.profile).toEqual([]);
+      expect(result.current.hasExistingProfile).toBe(true);
+
+      // 4. Add first field
+      const firstField = {
+        label: 'Full Name',
+        value: 'John Doe',
+        type: 'personal' as const,
+        isSensitive: false,
+      };
+
+      await act(async () => {
+        await result.current.addField(firstField);
+      });
+
+      expect(result.current.profile).toHaveLength(1);
+      expect(result.current.profile?.[0]).toEqual(firstField);
+
+      // 5. Add second field
+      const secondField = {
+        label: 'Email',
+        value: 'john@example.com',
+        type: 'contact' as const,
+        isSensitive: false,
+      };
+
+      await act(async () => {
+        await result.current.addField(secondField);
+      });
+
+      expect(result.current.profile).toHaveLength(2);
+      expect(result.current.profile?.[1]).toEqual(secondField);
+
+      // 6. Save updated profile
+      await act(async () => {
+        await result.current.saveProfileData(testPassphrase);
+      });
+
+      // Verify save was called with the complete profile
+      expect(mockStorage.saveProfile).toHaveBeenLastCalledWith(
+        [firstField, secondField],
+        testPassphrase
+      );
+    });
+
+    it('should handle mixed operations after first-time setup', async () => {
+      const { result } = renderHook(() => useProfile());
+
+      // Initialize empty profile
+      await act(async () => {
+        await result.current.saveProfileData(testPassphrase);
+      });
+
+      // Add some fields
+      await act(async () => {
+        await result.current.addField({
+          label: 'Name',
+          value: 'John',
+          type: 'personal',
+          isSensitive: false,
+        });
+      });
+
+      await act(async () => {
+        await result.current.addField({
+          label: 'Age',
+          value: '25',
+          type: 'personal',
+          isSensitive: false,
+        });
+      });
+
+      expect(result.current.profile).toHaveLength(2);
+
+      // Update a field
+      await act(async () => {
+        await result.current.updateField(0, { value: 'John Doe' });
+      });
+
+      expect(result.current.profile?.[0]?.value).toBe('John Doe');
+
+      // Remove a field
+      await act(async () => {
+        await result.current.removeField(1);
+      });
+
+      expect(result.current.profile).toHaveLength(1);
+      expect(result.current.profile?.[0]?.label).toBe('Name');
+    });
+
+    it('should maintain state consistency after first-time profile creation', async () => {
+      const { result } = renderHook(() => useProfile());
+
+      // Create profile
+      await act(async () => {
+        await result.current.saveProfileData(testPassphrase);
+      });
+
+      // Add fields when profile state is empty array
+      const field1 = {
+        label: 'Test Field 1',
+        value: 'Value 1',
+        type: 'personal' as const,
+        isSensitive: false,
+      };
+
+      const field2 = {
+        label: 'Test Field 2',
+        value: 'Value 2',
+        type: 'personal' as const,
+        isSensitive: true,
+      };
+
+      await act(async () => {
+        await result.current.addField(field1);
+      });
+
+      await act(async () => {
+        await result.current.addField(field2);
+      });
+
+      // Verify duplicate label validation still works
+      await act(async () => {
+        await expect(result.current.addField({
+          label: 'Test Field 1', // Duplicate
+          value: 'Different Value',
+          type: 'contact',
+          isSensitive: false,
+        })).rejects.toThrow('A field with this label already exists');
+      });
+
+      // Profile should still contain only the first two fields
+      expect(result.current.profile).toHaveLength(2);
     });
   });
 
