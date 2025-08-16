@@ -12,7 +12,7 @@ export interface UseProfileReturn {
   removeField: (index: number) => Promise<void>;
   loadProfileData: (passphrase: string) => Promise<boolean>;
   saveProfileData: (passphrase: string) => Promise<void>;
-  clearProfile: () => void;
+  clearProfile: () => Promise<void>;
 }
 
 /**
@@ -153,10 +153,18 @@ export function useProfile(): UseProfileReturn {
     });
   }, [profile]);
 
-  const clearProfile = useCallback(() => {
+  const clearProfile = useCallback(async () => {
     setProfile(null);
     setError(null);
-    setHasExistingProfile(false);
+    
+    // Re-check if profile exists in storage (sign out doesn't delete encrypted data)
+    try {
+      const exists = await hasProfile();
+      setHasExistingProfile(exists);
+    } catch (error) {
+      // If storage check fails, default to false for safety
+      setHasExistingProfile(false);
+    }
   }, []);
 
   return {

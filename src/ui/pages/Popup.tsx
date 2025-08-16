@@ -6,6 +6,7 @@ import { ProfileField } from '../../types';
 import { EncryptionSettings } from '../components/EncryptionSettings';
 import { ProfileList } from '../components/ProfileList';
 import { Button } from '../components/common/Button';
+import { Modal } from '../components/common/Modal';
 
 function PopupApp() {
   const {
@@ -23,6 +24,7 @@ function PopupApp() {
 
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [currentPassphrase, setCurrentPassphrase] = useState('');
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
   const handlePassphraseSet = async (passphrase: string) => {
     try {
@@ -66,10 +68,19 @@ function PopupApp() {
     }
   };
 
-  const handleLock = () => {
-    clearProfile();
+  const handleSignOutRequest = () => {
+    setShowSignOutConfirm(true);
+  };
+
+  const handleSignOutConfirm = async () => {
+    await clearProfile();
     setIsUnlocked(false);
     setCurrentPassphrase('');
+    setShowSignOutConfirm(false);
+  };
+
+  const handleSignOutCancel = () => {
+    setShowSignOutConfirm(false);
   };
 
   const openOptionsPage = () => {
@@ -113,10 +124,10 @@ function PopupApp() {
             <Button
               size="small"
               variant="secondary"
-              onClick={handleLock}
-              title="Lock profile"
+              onClick={handleSignOutRequest}
+              title="Clears profile data from memory. Your encrypted data remains safe."
             >
-              🔒
+              ↗️
             </Button>
           </div>
         </div>
@@ -137,6 +148,38 @@ function PopupApp() {
           isLoading={isLoading}
         />
       </div>
+
+      {/* Sign Out Confirmation Modal */}
+      <Modal
+        isOpen={showSignOutConfirm}
+        onClose={handleSignOutCancel}
+        title="Sign Out"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            This will clear your profile from memory. You'll need to enter your passphrase again to access your profile.
+          </p>
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+            <p className="text-sm text-blue-800">
+              <strong>Your encrypted data remains safely stored</strong> and will not be deleted.
+            </p>
+          </div>
+          <div className="flex items-center justify-end space-x-3 pt-4">
+            <Button
+              variant="secondary"
+              onClick={handleSignOutCancel}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSignOutConfirm}
+            >
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

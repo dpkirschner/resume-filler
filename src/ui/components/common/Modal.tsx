@@ -15,7 +15,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
 
   return (
     <div 
-      className="fixed inset-0 z-50 overflow-y-auto"
+      className="fixed inset-0 z-[999] overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -32,7 +32,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
         <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
         {/* Modal panel */}
-        <div className="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-lg">
+        <div className="relative z-10 inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-lg">
           {title && (
             <div className="mb-4">
               <h3 

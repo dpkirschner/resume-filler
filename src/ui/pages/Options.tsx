@@ -6,6 +6,7 @@ import { ProfileField } from '../../types';
 import { EncryptionSettings } from '../components/EncryptionSettings';
 import { ProfileList } from '../components/ProfileList';
 import { Button } from '../components/common/Button';
+import { Modal } from '../components/common/Modal';
 import { clearAllData } from '../../storage';
 
 function OptionsApp() {
@@ -24,6 +25,7 @@ function OptionsApp() {
 
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [currentPassphrase, setCurrentPassphrase] = useState('');
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
   const handlePassphraseSet = async (passphrase: string) => {
     try {
@@ -72,7 +74,7 @@ function OptionsApp() {
     if (window.confirm('Are you sure you want to delete ALL data? This action cannot be undone.')) {
       try {
         await clearAllData();
-        clearProfile();
+        await clearProfile();
         setIsUnlocked(false);
         setCurrentPassphrase('');
         alert('All data has been deleted successfully.');
@@ -82,10 +84,19 @@ function OptionsApp() {
     }
   };
 
-  const handleLock = () => {
-    clearProfile();
+  const handleSignOutRequest = () => {
+    setShowSignOutConfirm(true);
+  };
+
+  const handleSignOutConfirm = async () => {
+    await clearProfile();
     setIsUnlocked(false);
     setCurrentPassphrase('');
+    setShowSignOutConfirm(false);
+  };
+
+  const handleSignOutCancel = () => {
+    setShowSignOutConfirm(false);
   };
 
   if (!isUnlocked) {
@@ -126,11 +137,18 @@ function OptionsApp() {
               </p>
             </div>
             <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 mr-4">
+                <div className="text-sm text-green-600 font-medium flex items-center">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  Profile Unlocked
+                </div>
+              </div>
               <Button
                 variant="secondary"
-                onClick={handleLock}
+                onClick={handleSignOutRequest}
+                title="Clears profile data from memory. Your encrypted data remains safe."
               >
-                🔒 Lock Profile
+                ↗️ Sign Out
               </Button>
               <Button
                 variant="danger"
@@ -172,6 +190,38 @@ function OptionsApp() {
           </ul>
         </div>
       </div>
+
+      {/* Sign Out Confirmation Modal */}
+      <Modal
+        isOpen={showSignOutConfirm}
+        onClose={handleSignOutCancel}
+        title="Sign Out"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            This will clear your profile from memory. You'll need to enter your passphrase again to access your profile.
+          </p>
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+            <p className="text-sm text-blue-800">
+              <strong>Your encrypted data remains safely stored</strong> and will not be deleted.
+            </p>
+          </div>
+          <div className="flex items-center justify-end space-x-3 pt-4">
+            <Button
+              variant="secondary"
+              onClick={handleSignOutCancel}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSignOutConfirm}
+            >
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

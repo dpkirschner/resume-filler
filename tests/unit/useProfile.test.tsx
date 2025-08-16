@@ -587,9 +587,10 @@ describe('useProfile Hook', () => {
   });
 
   describe('clearProfile', () => {
-    it('should clear all profile state', async () => {
-      // Set up mock to return profile data for this test
+    it('should clear session state but maintain hasExistingProfile when profile exists in storage', async () => {
+      // Set up mocks: profile exists in storage and can be loaded
       mockStorage.loadProfile.mockResolvedValueOnce(mockProfile);
+      mockStorage.hasProfile.mockResolvedValue(true); // Profile exists in storage
       
       const { result } = renderHook(() => useProfile());
 
@@ -601,13 +602,178 @@ describe('useProfile Hook', () => {
       // Verify profile was loaded
       expect(result.current.profile).toEqual(mockProfile);
 
-      act(() => {
-        result.current.clearProfile();
+      // Clear profile (sign out)
+      await act(async () => {
+        await result.current.clearProfile();
       });
 
+      // Session state should be cleared
+      expect(result.current.profile).toBeNull();
+      expect(result.current.error).toBeNull();
+      
+      // But hasExistingProfile should reflect storage reality (true)
+      expect(result.current.hasExistingProfile).toBe(true);
+      expect(mockStorage.hasProfile).toHaveBeenCalledTimes(2); // Once on mount, once in clearProfile
+    });
+
+    it('should clear session state and set hasExistingProfile to false when no profile exists in storage', async () => {
+      // Set up mocks: no profile in storage
+      mockStorage.hasProfile.mockResolvedValue(false);
+      
+      const { result } = renderHook(() => useProfile());
+
+      // Manually set some session state to clear
+      await act(async () => {
+        await result.current.addField({
+          label: 'Test Field',
+          value: 'Test Value',
+          type: 'personal',
+          isSensitive: false,
+        });
+      });
+
+      // Clear profile
+      await act(async () => {
+        await result.current.clearProfile();
+      });
+
+      // All state should be cleared
       expect(result.current.profile).toBeNull();
       expect(result.current.error).toBeNull();
       expect(result.current.hasExistingProfile).toBe(false);
+      expect(mockStorage.hasProfile).toHaveBeenCalledTimes(2); // Once on mount, once in clearProfile
+    });
+
+    it('should handle storage errors gracefully during clearProfile', async () => {
+      // Set up mock to fail on hasProfile call during clear
+      mockStorage.loadProfile.mockResolvedValueOnce(mockProfile);
+      mockStorage.hasProfile
+        .mockResolvedValueOnce(true) // Initial mount check succeeds
+        .mockRejectedValueOnce(new Error('Storage error')); // Clear check fails
+      
+      const { result } = renderHook(() => useProfile());
+
+      // Load profile first
+      await act(async () => {
+        await result.current.loadProfileData(testPassphrase);
+      });
+
+      // Clear profile - should handle storage error gracefully
+      await act(async () => {
+        await result.current.clearProfile();
+      });
+
+      // Session state should still be cleared
+      expect(result.current.profile).toBeNull();
+      expect(result.current.error).toBeNull();
+      
+      // hasExistingProfile should default to false on error
+      expect(result.current.hasExistingProfile).toBe(false);
+    });
+  });
+
+  describe('Sign-Out Flow Integration', () => {
+    it('should handle complete sign-out and sign-in cycle correctly', async () => {
+      // Setup: Profile exists in storage
+      mockStorage.hasProfile.mockResolvedValue(true);
+      mockStorage.loadProfile.mockResolvedValue(mockProfile);
+      
+      const { result } = renderHook(() => useProfile());
+
+      // Wait for initial mount check
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+
+      // Should recognize existing profile
+      expect(result.current.hasExistingProfile).toBe(true);
+
+      // Sign in (load profile)
+      await act(async () => {
+        await result.current.loadProfileData(testPassphrase);
+      });
+
+      expect(result.current.profile).toEqual(mockProfile);
+
+      // Sign out (clear profile)
+      await act(async () => {
+        await result.current.clearProfile();
+      });
+
+      // Should maintain knowledge of existing profile
+      expect(result.current.profile).toBeNull();
+      expect(result.current.hasExistingProfile).toBe(true);
+
+      // Sign in again
+      await act(async () => {
+        await result.current.loadProfileData(testPassphrase);
+      });
+
+      expect(result.current.profile).toEqual(mockProfile);
+    });
+
+    it('should differentiate between new user and returning user flows', async () => {
+      // Test new user flow
+      mockStorage.hasProfile.mockResolvedValue(false);
+      
+      const { result: newUserResult } = renderHook(() => useProfile());
+
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+
+      expect(newUserResult.current.hasExistingProfile).toBe(false); // New user
+
+      // Test returning user flow  
+      mockStorage.hasProfile.mockResolvedValue(true);
+      
+      const { result: returningUserResult } = renderHook(() => useProfile());
+
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+
+      expect(returningUserResult.current.hasExistingProfile).toBe(true); // Returning user
+    });
+
+    it('should preserve hasExistingProfile state through multiple sign-out/sign-in cycles', async () => {
+      mockStorage.hasProfile.mockResolvedValue(true);
+      mockStorage.loadProfile.mockResolvedValue(mockProfile);
+      
+      const { result } = renderHook(() => useProfile());
+
+      // Initial state
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+      expect(result.current.hasExistingProfile).toBe(true);
+
+      // Cycle 1: Sign in -> Sign out
+      await act(async () => {
+        await result.current.loadProfileData(testPassphrase);
+      });
+      expect(result.current.profile).toEqual(mockProfile);
+
+      await act(async () => {
+        await result.current.clearProfile();
+      });
+      expect(result.current.profile).toBeNull();
+      expect(result.current.hasExistingProfile).toBe(true);
+
+      // Cycle 2: Sign in -> Sign out
+      await act(async () => {
+        await result.current.loadProfileData(testPassphrase);
+      });
+      expect(result.current.profile).toEqual(mockProfile);
+
+      await act(async () => {
+        await result.current.clearProfile();
+      });
+      expect(result.current.profile).toBeNull();
+      expect(result.current.hasExistingProfile).toBe(true);
+
+      // Verify hasProfile was called appropriately
+      expect(mockStorage.hasProfile).toHaveBeenCalledTimes(3); // Mount + 2 clears
     });
   });
 });
