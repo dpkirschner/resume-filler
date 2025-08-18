@@ -60,6 +60,7 @@ export interface FormFieldAttributes {
   autocomplete?: string;
   'aria-label'?: string;
   'aria-labelledby'?: string;
+  'data-automation-id'?: string;
 }
 
 export interface SelectOption {
@@ -110,9 +111,115 @@ export interface SelectorResult {
   confidence: number;
 }
 
-// Background script communication types
+//=============================================================================
+// MAPPING ENGINE TYPES
+//=============================================================================
+
+// Individual field mapping result
+export interface FieldMapping {
+  formFieldIdx: number; // Index in the original form schema
+  profileKey: string; // Key from user profile to map to
+  confidence: number; // 0-1 confidence score
+  source: 'vendor' | 'heuristic' | 'llm'; // Which tier generated this mapping
+  action: 'setValue' | 'selectByText' | 'selectByValue'; // DOM action to perform
+  reasoning?: string; // Human-readable explanation for debugging/UI
+}
+
+// Complete mapping result for a form
+export interface MappingResult {
+  mappings: FieldMapping[]; // Successfully mapped fields
+  unmappedFields: number[]; // Indices of fields that couldn't be mapped
+  processingTime: number; // Milliseconds spent on mapping
+  source: 'vendor' | 'heuristic' | 'llm' | 'hybrid'; // Primary mapping strategy used
+  metadata?: {
+    vendorAdapter?: string; // Name of adapter used (if vendor)
+    heuristicStats?: HeuristicMappingStats; // Detailed heuristic scores
+    fallbackReason?: string; // Why we fell back to this tier
+  };
+}
+
+// Vendor adapter interface for ATS-specific mapping
+export interface VendorAdapter {
+  readonly name: string; // Human-readable adapter name
+  readonly domains: string[]; // Domains this adapter handles
+  readonly priority: number; // Higher priority = tried first
+  canHandle(url: string): boolean; // Quick check if adapter applies
+  mapFields(
+    formSchema: ExtractedFormSchema, 
+    profileKeys: string[]
+  ): Promise<MappingResult>;
+}
+
+// Heuristic mapping configuration
+export interface HeuristicWeights {
+  exactMatch: number; // Weight for exact label/key match
+  partialMatch: number; // Weight for substring/partial match
+  autocompleteMatch: number; // Weight for autocomplete attribute match
+  nameAttributeMatch: number; // Weight for name attribute match
+  idAttributeMatch: number; // Weight for id attribute match
+  typeBonus: number; // Bonus for input type alignment (email->email)
+  synonymBonus: number; // Bonus for known synonyms
+}
+
+// Detailed scoring breakdown for heuristic mapping
+export interface ScoreBreakdown {
+  exactMatch: number;
+  partialMatch: number;
+  autocompleteMatch: number;
+  nameAttributeMatch: number;
+  idAttributeMatch: number;
+  typeBonus: number;
+  synonymBonus: number;
+  totalScore: number;
+}
+
+// Statistics from heuristic mapping for analysis
+export interface HeuristicMappingStats {
+  totalFields: number;
+  highConfidenceMatches: number; // confidence >= 0.8
+  mediumConfidenceMatches: number; // 0.5 <= confidence < 0.8
+  lowConfidenceMatches: number; // confidence < 0.5
+  averageConfidence: number;
+  processingTimeMs: number;
+}
+
+// Profile schema for anonymized LLM calls
+export interface ProfileSchema {
+  keys: string[]; // Just the profile field labels, no values
+  types: Record<string, string>; // Field type mapping for context
+}
+
+// LLM mapping payload (anonymized)
+export interface LLMappingPayload {
+  formSchema: {
+    idx: number;
+    label: string;
+    attributes: FormFieldAttributes;
+    elementType: string;
+    options?: SelectOption[];
+  }[];
+  profileSchema: ProfileSchema;
+}
+
+// LLM mapping response
+export interface LLMappingResponse {
+  mappings: {
+    idx: number;
+    profileKey: string;
+    action: FieldMapping['action'];
+    confidence: number;
+    reasoning: string;
+  }[];
+  unmappedIndices: number[];
+}
+
+//=============================================================================
+// BACKGROUND SCRIPT COMMUNICATION TYPES
+//=============================================================================
+
 export type ExtractorMessage = 
   | { type: 'EXTRACT_FORMS'; payload: { forceExtraction?: boolean } }
   | { type: 'FORM_SCHEMA_EXTRACTED'; payload: ExtractedFormSchema }
-  | { type: 'MAPPING_READY'; payload: Record<string, unknown> }
+  | { type: 'MAPPING_READY'; payload: MappingResult }
+  | { type: 'MAPPING_ERROR'; payload: { error: string; details?: Record<string, unknown> } }
   | { type: 'EXTRACTION_ERROR'; payload: { error: string; details?: Record<string, unknown> } };
