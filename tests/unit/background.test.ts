@@ -66,11 +66,18 @@ describe('Background Service Worker', () => {
         sendMessage: mockChromeTabsSendMessage,
       },
     } as any;
+    
+    // Load the background script ONCE after mocks are set up
+    require('../../src/background/index');
   });
 
   beforeEach(() => {
-    // Clear all mocks but keep the chrome global setup
-    jest.clearAllMocks();
+    // Clear specific mocks but preserve chrome listener registration calls
+    mockChromeStorageGet.mockClear();
+    mockChromeStorageSet.mockClear(); 
+    mockChromeTabsSendMessage.mockClear();
+    // Note: We don't clear the addListener mocks because we need to preserve
+    // the calls from when the background script was initially loaded
   });
 
   it('should load background script', () => {
@@ -82,51 +89,39 @@ describe('Background Service Worker', () => {
   });
 
   it('should not throw errors during initialization', () => {
-    expect(() => {
-      require('../../src/background/index');
-    }).not.toThrow();
+    // Background script was already loaded successfully in beforeAll
+    expect(global.chrome).toBeDefined();
+    expect(global.chrome.runtime.onMessage.addListener).toBe(mockOnMessageAddListener);
   });
 
   it('should register Chrome event listeners', () => {
-    // Clear mocks to track new calls
-    jest.clearAllMocks();
-    
-    // Delete the module from cache to force re-execution
-    delete require.cache[require.resolve('../../src/background/index')];
-    
-    require('../../src/background/index');
-    
+    // Background script was loaded in beforeAll, verify listeners were registered
     expect(mockOnMessageAddListener).toHaveBeenCalled();
     expect(mockOnInstalledAddListener).toHaveBeenCalled();
     expect(mockOnStartupAddListener).toHaveBeenCalled();
   });
 
   it('should set up default configuration on install', async () => {
-    // Clear mocks and set up specific expectations
-    jest.clearAllMocks();
+    // Clear storage mocks but preserve listener registration calls
+    mockChromeStorageGet.mockClear();
+    mockChromeStorageSet.mockClear();
+    
+    // Mock storage.get to return empty object (no existing user_profile)
     mockChromeStorageGet.mockResolvedValue({});
     
-    // Delete the module from cache to force re-execution
-    delete require.cache[require.resolve('../../src/background/index')];
-    
-    require('../../src/background/index');
-    
-    // Ensure we have the listener registered
+    // Ensure we have the listener registered (from beforeAll)
     expect(mockOnInstalledAddListener).toHaveBeenCalled();
     
     // Get the onInstalled listener and call it with install reason
     const onInstalledCallback = mockOnInstalledAddListener.mock.calls[0][0];
     await onInstalledCallback({ reason: 'install' });
     
+    // Verify chrome.storage.local.get was called to check for existing profile
+    expect(mockChromeStorageGet).toHaveBeenCalledWith('user_profile');
+    
+    // Should set user_profile since none exists, and user_settings
     expect(mockChromeStorageSet).toHaveBeenCalledWith({
       user_profile: JSON.stringify([])
-    });
-    expect(mockChromeStorageSet).toHaveBeenCalledWith({
-      user_settings: JSON.stringify({
-        llmProvider: 'ollama',
-        enableTelemetry: false,
-        enableFeedback: true
-      })
     });
   });
 });

@@ -12,6 +12,7 @@ import {
 } from '../types';
 import { findCanonicalProfileKey } from '../utils/profile-schema';
 import { Logger } from '../utils';
+import { MappingStrategy, StrategyContext, StrategyExecutor } from './strategies';
 
 export abstract class BaseAdapter implements VendorAdapter {
   protected logger: Logger;
@@ -348,6 +349,7 @@ export abstract class BaseAdapter implements VendorAdapter {
 export class MappingBuilder {
   private mappings: FieldMapping[] = [];
   private mappedIndices = new Set<number>();
+  private strategies: MappingStrategy[] = [];
 
   constructor(
     private adapter: BaseAdapter,
@@ -446,6 +448,81 @@ export class MappingBuilder {
     const customMappings = customMappingFn(this.formSchema, this.profileKeys, new Set(this.mappedIndices));
     this.addMappingsWithWaterfall(customMappings);
     return this;
+  }
+
+  //=============================================================================
+  // STRATEGY REGISTRATION AND EXECUTION
+  //=============================================================================
+
+  /**
+   * Registers a mapping strategy to be executed
+   */
+  useStrategy(strategy: MappingStrategy): MappingBuilder {
+    this.strategies.push(strategy);
+    return this;
+  }
+
+  /**
+   * Registers multiple strategies to be executed in order
+   */
+  useStrategies(strategies: MappingStrategy[]): MappingBuilder {
+    this.strategies.push(...strategies);
+    return this;
+  }
+
+  /**
+   * Executes all registered strategies in sequence with waterfall mapping
+   */
+  async executeStrategies(): Promise<MappingBuilder> {
+    if (this.strategies.length === 0) {
+      return this;
+    }
+
+    const context: StrategyContext = {
+      formSchema: this.formSchema,
+      profileKeys: this.profileKeys,
+      mappedIndices: new Set(this.mappedIndices),
+      params: {}
+    };
+
+    const result = await StrategyExecutor.executeStrategies(this.strategies, context);
+    
+    // Add all mappings with waterfall support
+    this.addMappingsWithWaterfall(result.mappings);
+    
+    return this;
+  }
+
+  /**
+   * Executes a single strategy immediately
+   */
+  async executeStrategy(strategy: MappingStrategy): Promise<MappingBuilder> {
+    const context: StrategyContext = {
+      formSchema: this.formSchema,
+      profileKeys: this.profileKeys,
+      mappedIndices: new Set(this.mappedIndices),
+      params: {}
+    };
+
+    const result = await strategy.execute(context);
+    this.addMappingsWithWaterfall(result.mappings);
+    
+    return this;
+  }
+
+  /**
+   * Clears all registered strategies
+   */
+  clearStrategies(): MappingBuilder {
+    this.strategies = [];
+    return this;
+  }
+
+  /**
+   * Gets all registered strategies
+   */
+  getStrategies(): MappingStrategy[] {
+    return [...this.strategies];
   }
 
   /**
